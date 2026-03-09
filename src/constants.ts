@@ -44,11 +44,14 @@ export const CLASSIC_API_LEGACY_URL = `${GITHUB_RAW_BASE}/objectClassifications.
 
 export const KNOWN_PCE_VERSIONS = [
   "2022",
+  "2022_1",
+  "2022_2",
   "2023_0",
   "2023_1",
   "2023_2",
   "2023_3",
-  "2025",
+  "2025_0",
+  "2025_1",
 ] as const;
 
 export type PCEVersion = (typeof KNOWN_PCE_VERSIONS)[number] | "latest";

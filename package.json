@@ -43,5 +43,10 @@
     "@yao-pkg/pkg": "^6.14.1",
     "esbuild": "^0.27.3",
     "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "@yao-pkg/pkg": {
+      "into-stream": "6.0.0"
+    }
   }
 }

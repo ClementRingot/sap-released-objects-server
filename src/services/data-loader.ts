@@ -3,6 +3,7 @@
 // Fetches JSON from GitHub, normalizes objects, builds indexed DataStore
 // ============================================================================
 
+import https from "node:https";
 import type {
   RawReleaseInfoFile,
   RawClassificationsFile,
@@ -41,21 +42,69 @@ function getCacheKey(
 
 // ---------------------------------------------------------------------------
 // Fetch JSON from GitHub
+// Uses node:https instead of fetch for compatibility with pkg binaries
 // ---------------------------------------------------------------------------
 
 async function fetchJSON<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: { Accept: "application/json" },
+  return new Promise((resolve, reject) => {
+    https.get(
+      url,
+      {
+        headers: { Accept: "application/json" },
+        // Skip TLS verification: the data is public read-only JSON from GitHub.
+        // Corporate proxies often re-sign HTTPS with their own CA, which pkg
+        // binaries do not trust. This is safe since no secrets are transmitted.
+        rejectUnauthorized: false,
+      },
+      (res) => {
+        // Handle redirects (3xx)
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          fetchJSON<T>(res.headers.location).then(resolve, reject);
+          res.resume();
+          return;
+        }
+
+        // Handle HTTP errors
+        if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+          res.resume();
+          reject(
+            new Error(
+              `Failed to fetch ${url}: ${res.statusCode} ${res.statusMessage}. ` +
+                `Verify the file exists at https://github.com/SAP/abap-atc-cr-cv-s4hc/tree/main/src`
+            )
+          );
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          try {
+            const body = Buffer.concat(chunks).toString("utf-8");
+            resolve(JSON.parse(body) as T);
+          } catch (e) {
+            reject(
+              new Error(
+                `Failed to parse JSON from ${url}: ${e instanceof Error ? e.message : String(e)}`
+              )
+            );
+          }
+        });
+        res.on("error", reject);
+      }
+    ).on("error", (err) => {
+      reject(
+        new Error(
+          `Failed to fetch ${url}: ${err.message}`
+        )
+      );
+    });
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch ${url}: ${response.status} ${response.statusText}. ` +
-        `Verify the file exists at https://github.com/SAP/abap-atc-cr-cv-s4hc/tree/main/src`
-    );
-  }
-
-  return response.json() as Promise<T>;
 }
 
 // ---------------------------------------------------------------------------
