@@ -108,25 +108,6 @@ Check Clean Core compliance for a list of objects. Returns a compliance rate.
 -> The agent uses sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI_ALV_GRID")
 ```
 
-## Publishing a New Release
-
-Executables are automatically built by GitHub Actions when a version tag is pushed:
-
-```bash
-# 1. Bump the version in package.json
-npm version patch   # or minor / major
-
-# 2. Push the tag
-git push origin main --tags
-```
-
-GitHub Actions will then:
-1. Build TypeScript on 3 runners (ubuntu, windows, macos)
-2. Bundle with esbuild into a single CJS file
-3. Package with pkg into native executables
-4. Create a GitHub Release with all 3 binaries as assets
-5. Auto-generate release notes
-
 ## Contributing
 
 Contributions are welcome! Feel free to open an issue or a PR.
