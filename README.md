@@ -4,41 +4,41 @@
 [![Release](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/release.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Serveur MCP pour interroger le [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) — la source officielle des APIs released, Classic APIs, et informations de successeurs pour le développement ABAP Cloud / Clean Core.
+MCP server for querying the [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) — the official source for Released APIs, Classic APIs, and successor information for ABAP Cloud / Clean Core development.
 
-## Téléchargement rapide
+## Quick Download
 
-Exécutables standalone (aucune installation de Node.js requise) :
+Standalone executables (no Node.js installation required):
 
-| Plateforme | Téléchargement |
-|------------|---------------|
+| Platform | Download |
+|----------|----------|
 | **Windows** | [`sap-released-objects-win.exe`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-win.exe) |
 | **Linux** | [`sap-released-objects-linux`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-linux) |
 | **macOS** | [`sap-released-objects-macos`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-macos) |
 
-> 💡 Remplacez `ClementRingot` par votre nom d'utilisateur GitHub après la création du repo.
+> Replace `ClementRingot` with your GitHub username after creating your own repo.
 
-## Fonctionnalités
+## Features
 
-- 🔍 **Recherche d'objets SAP** (classes, CDS views, tables, data elements, BDEFs, etc.)
-- 🏷️ **Filtrage par Clean Core Level** (A/B/C/D) — remplace le modèle 3-tier depuis août 2025
-- 🔄 **Recherche de successeurs** pour les objets deprecated ou non-released
-- ✅ **Vérification de conformité Clean Core** pour une liste d'objets
-- 📊 **Statistiques** du repository (comptages par level, type, composant)
-- 🌐 **Support multi-systèmes** : Public Cloud, Private Cloud, On-Premise
-- 📦 **Versioning** : fichiers spécifiques par version PCE (2022, 2023_x, 2025)
-- 🔌 **Dual transport** : stdio (local) + HTTP (remote)
+- **Search SAP objects** (classes, CDS views, tables, data elements, BDEFs, etc.)
+- **Filter by Clean Core Level** (A/B/C/D) — replaces the 3-tier model since August 2025
+- **Find successors** for deprecated or non-released objects
+- **Clean Core compliance check** for a list of objects
+- **Statistics** overview of the repository (counts by level, type, component)
+- **Multi-system support**: Public Cloud, Private Cloud, On-Premise
+- **Versioning**: version-specific files for PCE (2022, 2023_x, 2025)
+- **Dual transport**: stdio (local) + HTTP (remote)
 
 ## Clean Core Level Concept
 
-Depuis août 2025, SAP a remplacé le modèle 3-tier par le **Clean Core Level Concept** :
+Since August 2025, SAP has replaced the 3-tier model with the **Clean Core Level Concept**:
 
-| Level | Description | Source de données | Upgrade Safety |
-|-------|-------------|-------------------|----------------|
-| **A** | Released APIs (ABAP Cloud) | `objectReleaseInfoLatest.json` | ✅ Upgrade-safe |
-| **B** | Classic APIs | `objectClassifications_SAP.json` | ⚠️ Upgrade-stable |
-| **C** | Objets internes/non classifiés | Objets non catalogués | ❌ Risque gérable |
-| **D** | noAPI (non recommandé) | Objets marqués `noAPI` | ❌ Risque élevé |
+| Level | Description | Data Source | Upgrade Safety |
+|-------|-------------|-------------|----------------|
+| **A** | Released APIs (ABAP Cloud) | `objectReleaseInfoLatest.json` | Upgrade-safe |
+| **B** | Classic APIs | `objectClassifications_SAP.json` | Upgrade-stable |
+| **C** | Internal/unclassified objects | Uncatalogued objects | Manageable risk |
+| **D** | noAPI (not recommended) | Objects marked `noAPI` | High risk |
 
 ## Installation
 
@@ -47,30 +47,30 @@ npm install
 npm run build
 ```
 
-## Générer des exécutables (sans Node.js requis)
+## Building Standalone Executables (no Node.js required)
 
-Le projet utilise `esbuild` (bundling) + `@yao-pkg/pkg` (packaging) pour produire des binaires standalone.
+The project uses `esbuild` (bundling) + `@yao-pkg/pkg` (packaging) to produce standalone binaries.
 
 ```bash
-# Bundle d'abord (requis avant pkg)
+# Bundle first (required before pkg)
 npm run bundle
 
 # Windows
-npm run pkg:win      # → bin/sap-released-objects-win.exe
+npm run pkg:win      # -> bin/sap-released-objects-win.exe
 
 # Linux
-npm run pkg:linux    # → bin/sap-released-objects-linux
+npm run pkg:linux    # -> bin/sap-released-objects-linux
 
 # macOS
-npm run pkg:macos    # → bin/sap-released-objects-macos
+npm run pkg:macos    # -> bin/sap-released-objects-macos
 
-# Les 3 d'un coup
-npm run pkg:all      # → bin/
+# All 3 at once
+npm run pkg:all      # -> bin/
 ```
 
-Le pipeline : `TypeScript → tsc → ESM JS → esbuild → single CJS bundle → pkg → executable natif`
+Pipeline: `TypeScript -> tsc -> ESM JS -> esbuild -> single CJS bundle -> pkg -> native executable`
 
-L'exécutable ne nécessite **aucune installation de Node.js** sur la machine cible.
+The executable requires **no Node.js installation** on the target machine.
 
 ## Configuration
 
@@ -88,7 +88,7 @@ L'exécutable ne nécessite **aucune installation de Node.js** sur la machine ci
 }
 ```
 
-### stdio avec exécutable (sans Node.js)
+### stdio with executable (no Node.js)
 
 ```json
 {
@@ -101,7 +101,7 @@ L'exécutable ne nécessite **aucune installation de Node.js** sur la machine ci
 }
 ```
 
-### HTTP (remote, multi-clients)
+### HTTP (remote, multi-client)
 
 ```bash
 TRANSPORT=http PORT=3001 node dist/index.js
@@ -118,83 +118,83 @@ TRANSPORT=http PORT=3001 node dist/index.js
 }
 ```
 
-## Tools disponibles
+## Available Tools
 
 ### 1. `sap_search_objects`
 
-Recherche d'objets avec filtres avancés.
+Search for objects with advanced filters.
 
-**Paramètres :**
+**Parameters:**
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `query` | string | *(requis)* | Terme de recherche (ex: `I_PRODUCT`, `MARA`) |
+| `query` | string | *(required)* | Search term (e.g., `I_PRODUCT`, `MARA`) |
 | `system_type` | enum | `public_cloud` | `public_cloud`, `private_cloud`, `on_premise` |
-| `clean_core_level` | enum | `A` | Level max cumulatif : A, B, C, ou D |
-| `version` | string | `latest` | Version PCE (ex: `2025`, `2023_3`) |
-| `object_type` | string | *(tous)* | Filtre TADIR (ex: `CLAS`, `DDLS`, `TABL`) |
-| `app_component` | string | *(tous)* | Composant applicatif (ex: `MM-PUR`, `FI-GL`) |
-| `state` | enum | *(tous)* | Filtre par état spécifique |
-| `limit` | number | `25` | Résultats par page (1-100) |
-| `offset` | number | `0` | Pagination |
+| `clean_core_level` | enum | `A` | Maximum cumulative level: A, B, C, or D |
+| `version` | string | `latest` | PCE version (e.g., `2025`, `2023_3`) |
+| `object_type` | string | *(all)* | TADIR filter (e.g., `CLAS`, `DDLS`, `TABL`) |
+| `app_component` | string | *(all)* | Application component (e.g., `MM-PUR`, `FI-GL`) |
+| `state` | enum | *(all)* | Filter by specific state |
+| `limit` | number | `25` | Results per page (1-100) |
+| `offset` | number | `0` | Pagination offset |
 
 ### 2. `sap_get_object_details`
 
-Détails complets d'un objet spécifique avec évaluation Clean Core.
+Get full details of a specific object with Clean Core assessment.
 
 ### 3. `sap_find_successor`
 
-Trouve le(s) successeur(s) d'un objet deprecated ou non-released. Essentiel pour la migration ABAP Cloud.
+Find the successor(s) of a deprecated or non-released object. Essential for ABAP Cloud migration.
 
 ### 4. `sap_list_object_types`
 
-Liste tous les types d'objets TADIR disponibles avec comptages par level.
+List all available TADIR object types with counts per level.
 
 ### 5. `sap_get_statistics`
 
-Vue d'ensemble statistique du repository.
+Statistical overview of the repository.
 
 ### 6. `sap_check_clean_core_compliance`
 
-Vérifie la conformité Clean Core d'une liste d'objets. Retourne un taux de conformité.
+Check Clean Core compliance for a list of objects. Returns a compliance rate.
 
-## Exemples d'utilisation
+## Usage Examples
 
-### Par un agent IA
+### With an AI Agent
 
 ```
-"Est-ce que la table MARA est disponible en ABAP Cloud ?"
-→ L'agent utilise sap_get_object_details(TABL, MARA, public_cloud)
-→ Réponse : deprecated, successeur = I_PRODUCT (CDS)
+"Is table MARA available in ABAP Cloud?"
+-> The agent uses sap_get_object_details(TABL, MARA, public_cloud)
+-> Answer: deprecated, successor = I_PRODUCT (CDS)
 
-"Trouve-moi toutes les CDS views released pour le module MM-PUR"
-→ L'agent utilise sap_search_objects(query="I_", object_type="DDLS", app_component="MM-PUR")
+"Find all released CDS views for the MM-PUR module"
+-> The agent uses sap_search_objects(query="I_", object_type="DDLS", app_component="MM-PUR")
 
-"Mon code utilise BSEG, MARA, CL_GUI_ALV_GRID. Est-ce Clean Core Level A ?"
-→ L'agent utilise sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI_ALV_GRID")
+"My code uses BSEG, MARA, CL_GUI_ALV_GRID. Is it Clean Core Level A?"
+-> The agent uses sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI_ALV_GRID")
 ```
 
-## Publier une nouvelle release
+## Publishing a New Release
 
-Les exécutables sont buildés automatiquement par GitHub Actions quand un tag de version est poussé :
+Executables are automatically built by GitHub Actions when a version tag is pushed:
 
 ```bash
-# 1. Bump la version dans package.json
-npm version patch   # ou minor / major
+# 1. Bump the version in package.json
+npm version patch   # or minor / major
 
-# 2. Push le tag
+# 2. Push the tag
 git push origin main --tags
 ```
 
-GitHub Actions va alors :
-1. Builder le TypeScript sur 3 runners (ubuntu, windows, macos)
-2. Bundler avec esbuild → single CJS file
-3. Packager avec pkg → exécutables natifs
-4. Créer une GitHub Release avec les 3 binaires en assets
-5. Générer les release notes automatiquement
+GitHub Actions will then:
+1. Build TypeScript on 3 runners (ubuntu, windows, macos)
+2. Bundle with esbuild into a single CJS file
+3. Package with pkg into native executables
+4. Create a GitHub Release with all 3 binaries as assets
+5. Auto-generate release notes
 
-## Contribuer
+## Contributing
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une PR.
+Contributions are welcome! Feel free to open an issue or a PR.
 
 ```bash
 git clone https://github.com/ClementRingot/sap-released-objects-mcp-server.git
@@ -202,17 +202,17 @@ cd sap-released-objects-mcp-server
 npm install
 npm run build
 npm run bundle
-# Test local
+# Local test
 node bundle/index.cjs
 ```
 
-## Source des données
+## Data Source
 
-Toutes les données proviennent du repository officiel SAP :
+All data comes from the official SAP repository:
 **https://github.com/SAP/abap-atc-cr-cv-s4hc**
 
-Les fichiers JSON sont mis en cache en mémoire pendant 1 heure pour optimiser les performances.
+JSON files are cached in memory for 1 hour to optimize performance.
 
-## Licence
+## License
 
 MIT
