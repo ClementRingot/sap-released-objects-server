@@ -16,8 +16,6 @@ Standalone executables (no Node.js installation required):
 | **Linux** | [`sap-released-objects-linux`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-linux) |
 | **macOS** | [`sap-released-objects-macos`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-macos) |
 
-> Replace `ClementRingot` with your GitHub username after creating your own repo.
-
 ## Features
 
 - **Search SAP objects** (classes, CDS views, tables, data elements, BDEFs, etc.)
