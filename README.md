@@ -40,55 +40,7 @@ Since August 2025, SAP has replaced the 3-tier model with the **Clean Core Level
 | **C** | Internal/unclassified objects | Uncatalogued objects | Manageable risk |
 | **D** | noAPI (not recommended) | Objects marked `noAPI` | High risk |
 
-## Installation
-
-```bash
-npm install
-npm run build
-```
-
-## Building Standalone Executables (no Node.js required)
-
-The project uses `esbuild` (bundling) + `@yao-pkg/pkg` (packaging) to produce standalone binaries.
-
-```bash
-# Bundle first (required before pkg)
-npm run bundle
-
-# Windows
-npm run pkg:win      # -> bin/sap-released-objects-win.exe
-
-# Linux
-npm run pkg:linux    # -> bin/sap-released-objects-linux
-
-# macOS
-npm run pkg:macos    # -> bin/sap-released-objects-macos
-
-# All 3 at once
-npm run pkg:all      # -> bin/
-```
-
-Pipeline: `TypeScript -> tsc -> ESM JS -> esbuild -> single CJS bundle -> pkg -> native executable`
-
-The executable requires **no Node.js installation** on the target machine.
-
 ## Configuration
-
-### stdio (Claude Code, Cline, etc.)
-
-```json
-{
-  "mcpServers": {
-    "sap-released-objects": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/sap-released-objects-mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-### stdio with executable (no Node.js)
 
 ```json
 {
@@ -96,23 +48,6 @@ The executable requires **no Node.js installation** on the target machine.
     "sap-released-objects": {
       "type": "stdio",
       "command": "/path/to/bin/sap-released-objects-win.exe"
-    }
-  }
-}
-```
-
-### HTTP (remote, multi-client)
-
-```bash
-TRANSPORT=http PORT=3001 node dist/index.js
-```
-
-```json
-{
-  "mcpServers": {
-    "sap-released-objects": {
-      "type": "http",
-      "url": "http://localhost:3001/mcp"
     }
   }
 }
