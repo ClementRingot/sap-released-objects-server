@@ -1,0 +1,76 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*" # Triggered on version tags: v1.0.0, v1.1.0, etc.
+
+permissions:
+  contents: write # Required to create releases and upload assets
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: node20-linux-x64
+            artifact: sap-released-objects-linux
+          - os: windows-latest
+            target: node20-win-x64
+            artifact: sap-released-objects-win.exe
+          - os: macos-latest
+            target: node20-macos-x64
+            artifact: sap-released-objects-macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Bundle with esbuild
+        run: npm run bundle
+
+      - name: Package executable
+        run: npx pkg bundle/index.cjs --targets ${{ matrix.target }} --output ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: List artifacts
+        run: find artifacts/ -type f | head -20
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/sap-released-objects-linux/sap-released-objects-linux
+            artifacts/sap-released-objects-win.exe/sap-released-objects-win.exe
+            artifacts/sap-released-objects-macos/sap-released-objects-macos
