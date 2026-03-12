@@ -133,8 +133,8 @@ function normalizeEntry(
   const level = STATE_TO_LEVEL[entry.state] ?? DEFAULT_LEVEL;
 
   const obj: SAPObject = {
-    objectType: entry.tadirObject || entry.objectType,
-    objectName: entry.tadirObjName || entry.objectKey,
+    objectType: (entry.tadirObject || entry.objectType).toUpperCase(),
+    objectName: (entry.tadirObjName || entry.objectKey).toUpperCase(),
     softwareComponent: entry.softwareComponent ?? "",
     applicationComponent: entry.applicationComponent ?? "",
     state: entry.state,
@@ -148,8 +148,8 @@ function normalizeEntry(
     };
     if (entry.successors && entry.successors.length > 0) {
       successor.objects = entry.successors.map((s) => ({
-        objectType: s.tadirObject || s.objectType,
-        objectName: s.tadirObjName || s.objectKey,
+        objectType: (s.tadirObject || s.objectType).toUpperCase(),
+        objectName: (s.tadirObjName || s.objectKey).toUpperCase(),
       }));
     }
     if (entry.successorConceptName) {
