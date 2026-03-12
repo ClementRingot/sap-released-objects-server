@@ -31,7 +31,7 @@ A hosted instance is available. Just add this to your MCP client config (Claude 
 
 Nothing to install, nothing to maintain — you're ready to go.
 
-### Option 2: Standalone executable (offline, no Node.js required)
+### Option 2: Standalone executable (no Node.js required)
 
 If you prefer running locally, download the executable for your platform:
 
@@ -62,7 +62,7 @@ Then add to your MCP client config:
 - **Clean Core compliance check** for a list of objects (with compliance rate)
 - **Statistics** — counts by level, type, and application component
 - **Multi-system support** — Public Cloud, Private Cloud, On-Premise
-- **Versioning** — version-specific files for PCE (2022, 2023_x, 2025)
+- **Dynamic versioning** — PCE versions discovered automatically from the SAP repository
 - **Dual transport** — hosted remote server or local stdio executable
 
 ## How It Works
@@ -127,6 +127,10 @@ Check Clean Core compliance for a list of objects. Returns individual assessment
 | `object_names` | string | *(required)* | Comma-separated list of object names |
 | `system_type` | enum | `public_cloud` | Target system type |
 | `target_level` | enum | `A` | Target Clean Core level |
+
+### `sap_list_versions`
+
+List all available S/4HANA PCE versions for Private Cloud and On-Premise systems. Versions are discovered dynamically from the SAP repository. No required parameters.
 
 ### `sap_list_object_types`
 
