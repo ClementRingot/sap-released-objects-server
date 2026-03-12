@@ -4,7 +4,7 @@
 [![Release](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/release.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An [MCP server](https://modelcontextprotocol.io/) that gives AI coding agents (Claude Code, Cline, Copilot…) real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
+An [MCP server](https://modelcontextprotocol.io/) that gives AI agents real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
 
 ## The Problem
 
