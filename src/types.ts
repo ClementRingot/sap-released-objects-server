@@ -126,6 +126,13 @@ export interface CacheEntry {
   expiresAt: number;
 }
 
+/** GitHub Contents API response entry */
+export interface GitHubContentEntry {
+  name: string;
+  type: string;
+  size: number;
+}
+
 // ============================================================================
 // Search/filter result types
 // ============================================================================

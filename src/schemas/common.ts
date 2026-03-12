@@ -3,7 +3,6 @@
 // ============================================================================
 
 import { z } from "zod";
-import { KNOWN_PCE_VERSIONS } from "../constants.js";
 
 /**
  * System type determines data source and available Clean Core Levels.
@@ -47,8 +46,10 @@ export const VersionSchema = z
   .describe(
     "S/4HANA version for Private Cloud or On-Premise systems. " +
       "Use 'latest' for the most recent version. " +
-      `Known versions: ${KNOWN_PCE_VERSIONS.join(", ")}. ` +
-      "Format: YEAR or YEAR_FPS (e.g., '2025', '2023_3'). " +
+      "Format: YEAR for base release, or YEAR_FPS where FPS is the Feature Pack Stack / SP number. " +
+      "IMPORTANT: '2022_1' = FPS01/SP01, '2023_3' = FPS03/SP03, etc. " +
+      "Always use the YEAR_N format when a specific SP/FPS is requested. " +
+      "Use sap_list_versions to see all currently available versions. " +
       "Ignored for public_cloud systems. Default: latest."
   );
 

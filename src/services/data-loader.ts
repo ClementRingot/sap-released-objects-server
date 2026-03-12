@@ -14,6 +14,7 @@ import type {
   CacheEntry,
   CleanCoreLevel,
   SystemType,
+  GitHubContentEntry,
 } from "../types.js";
 
 import {
@@ -24,6 +25,7 @@ import {
   STATE_TO_LEVEL,
   DEFAULT_LEVEL,
   CACHE_TTL_MS,
+  FALLBACK_PCE_VERSIONS,
 } from "../constants.js";
 
 // ---------------------------------------------------------------------------
@@ -210,6 +212,80 @@ function buildStore(objects: SAPObject[], sourceId: string): DataStore {
     loadedAt: new Date(),
     sourceId,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Discover PCE versions dynamically from GitHub
+// ---------------------------------------------------------------------------
+
+const GITHUB_CONTENTS_URL =
+  "https://api.github.com/repos/SAP/abap-atc-cr-cv-s4hc/contents/src";
+
+const PCE_VERSIONS_CACHE_KEY = "__pce_versions__";
+
+/** Cached PCE versions with expiry */
+let pceVersionsCache: { versions: string[]; expiresAt: number } | null = null;
+
+/**
+ * Discover available PCE versions by listing files from the GitHub API.
+ * Results are cached for CACHE_TTL_MS (1h). Falls back to FALLBACK_PCE_VERSIONS on error.
+ */
+export async function discoverPCEVersions(): Promise<string[]> {
+  // Check cache
+  if (pceVersionsCache && Date.now() < pceVersionsCache.expiresAt) {
+    return pceVersionsCache.versions;
+  }
+
+  try {
+    const entries = await fetchJSON<GitHubContentEntry[]>(GITHUB_CONTENTS_URL);
+    const regex = /^objectReleaseInfo_PCE(\d{4})(?:_(\d+))?\.json$/;
+
+    const versions: { year: number; fps: number; label: string }[] = [];
+
+    for (const entry of entries) {
+      const match = entry.name.match(regex);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const fps = match[2] !== undefined ? parseInt(match[2], 10) : -1;
+        const label = fps === -1 ? `${year}` : `${year}_${fps}`;
+        versions.push({ year, fps, label });
+      }
+    }
+
+    // Sort by year then FPS
+    versions.sort((a, b) => a.year - b.year || a.fps - b.fps);
+
+    const result = versions.map((v) => v.label);
+
+    if (result.length === 0) {
+      console.error(
+        "[DataLoader] No PCE versions found from GitHub API, using fallback"
+      );
+      pceVersionsCache = {
+        versions: [...FALLBACK_PCE_VERSIONS],
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      };
+      return pceVersionsCache.versions;
+    }
+
+    console.error(
+      `[DataLoader] Discovered ${result.length} PCE versions: ${result.join(", ")}`
+    );
+    pceVersionsCache = {
+      versions: result,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    };
+    return result;
+  } catch (err) {
+    console.error(
+      `[DataLoader] Failed to discover PCE versions: ${err instanceof Error ? err.message : String(err)}. Using fallback.`
+    );
+    pceVersionsCache = {
+      versions: [...FALLBACK_PCE_VERSIONS],
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    };
+    return pceVersionsCache.versions;
+  }
 }
 
 // ---------------------------------------------------------------------------

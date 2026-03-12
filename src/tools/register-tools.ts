@@ -5,10 +5,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SAPObject, CleanCoreLevel, SystemType, DataStore } from "../types.js";
-import { loadData } from "../services/data-loader.js";
+import { loadData, discoverPCEVersions } from "../services/data-loader.js";
 import {
   OBJECT_TYPE_DESCRIPTIONS,
-  KNOWN_PCE_VERSIONS,
   CHARACTER_LIMIT,
   DEFAULT_LIMIT,
 } from "../constants.js";
@@ -29,6 +28,32 @@ import {
 // ---------------------------------------------------------------------------
 
 const LEVEL_ORDER: CleanCoreLevel[] = ["A", "B", "C", "D"];
+
+/**
+ * Normalize version strings from common formats to the internal YEAR_FPS format.
+ * Handles: "2022 SP01" → "2022_1", "2023 FPS03" → "2023_3", "2022.1" → "2022_1", etc.
+ */
+function normalizeVersion(version: string): string {
+  const trimmed = version.trim();
+
+  // Already valid: "latest", "2022", "2022_1", etc.
+  if (trimmed === "latest" || /^\d{4}(_\d+)?$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Normalize "2022 SP01", "2022_FPS1", "2023.3", "2022 1", etc.
+  const match = trimmed.match(
+    /^(\d{4})[\s_.-]?(?:(?:SP|FPS)[\s_.-]?)?(\d+)$/i
+  );
+  if (match) {
+    const year = match[1];
+    const fps = String(parseInt(match[2], 10)); // Strip leading zeros
+    return `${year}_${fps}`;
+  }
+
+  // Fallback: return as-is (will fail at data loading if invalid)
+  return trimmed;
+}
 
 /** Get all levels up to and including the target level (cumulative) */
 function getLevelsUpTo(maxLevel: CleanCoreLevel): Set<CleanCoreLevel> {
@@ -52,7 +77,7 @@ async function getStore(
   cleanCoreLevel: CleanCoreLevel
 ): Promise<DataStore> {
   const includeClassic = needsClassicApis(cleanCoreLevel, systemType);
-  const effectiveVersion = systemType === "public_cloud" ? "latest" : version;
+  const effectiveVersion = systemType === "public_cloud" ? "latest" : normalizeVersion(version);
   return loadData(systemType, effectiveVersion, includeClassic);
 }
 
@@ -705,6 +730,8 @@ export function registerTools(server: McpServer): void {
           .sort((a, b) => b[1] - a[1])
           .slice(0, 10);
 
+        const pceVersions = await discoverPCEVersions();
+
         const lines: string[] = [
           `=== SAP Cloudification Repository Statistics ===`,
           "",
@@ -733,7 +760,7 @@ export function registerTools(server: McpServer): void {
             ([comp, count]) => `  ${comp}: ${count.toLocaleString()}`
           ),
           "",
-          `Available PCE versions: ${KNOWN_PCE_VERSIONS.join(", ")}`,
+          `Available PCE versions: ${pceVersions.join(", ")}`,
         ];
 
         return {
@@ -754,7 +781,66 @@ export function registerTools(server: McpServer): void {
   );
 
   // =========================================================================
-  // TOOL 6: sap_check_clean_core_compliance
+  // TOOL 6: sap_list_versions
+  // =========================================================================
+  server.registerTool(
+    "sap_list_versions",
+    {
+      title: "List Available S/4HANA Versions",
+      description:
+        "List all available S/4HANA PCE versions for Private Cloud and On-Premise systems. " +
+        "Versions are discovered dynamically from the SAP Cloudification Repository on GitHub. " +
+        "Use this to find which versions can be passed to other tools (sap_search_objects, " +
+        "sap_get_object_details, etc.).",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      try {
+        const versions = await discoverPCEVersions();
+
+        const lines: string[] = [
+          `=== Available S/4HANA PCE Versions ===`,
+          "",
+          `Total: ${versions.length} versions`,
+          "",
+          ...versions.map((v) => {
+            const parts = v.split("_");
+            const year = parts[0];
+            const fps = parts.length > 1 ? parts[1] : null;
+            return fps !== null
+              ? `  ${v}  (${year} FPS${fps.padStart(2, "0")} / SP${fps.padStart(2, "0")})`
+              : `  ${v}  (${year} base release)`;
+          }),
+          "",
+          "Use 'latest' to always target the most recent version.",
+          "Pass a specific version to other tools via the 'version' parameter.",
+        ];
+
+        return {
+          content: [{ type: "text" as const, text: lines.join("\n") }],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Error listing versions: ${err instanceof Error ? err.message : String(err)}`,
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // =========================================================================
+  // TOOL 7: sap_check_clean_core_compliance
   // =========================================================================
   server.registerTool(
     "sap_check_clean_core_compliance",

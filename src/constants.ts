@@ -42,7 +42,7 @@ export const CLASSIC_API_LEGACY_URL = `${GITHUB_RAW_BASE}/objectClassifications.
 // Known PCE versions available in the repository
 // ---------------------------------------------------------------------------
 
-export const KNOWN_PCE_VERSIONS = [
+export const FALLBACK_PCE_VERSIONS = [
   "2022",
   "2022_1",
   "2022_2",
@@ -54,7 +54,7 @@ export const KNOWN_PCE_VERSIONS = [
   "2025_1",
 ] as const;
 
-export type PCEVersion = (typeof KNOWN_PCE_VERSIONS)[number] | "latest";
+export type PCEVersion = (typeof FALLBACK_PCE_VERSIONS)[number] | "latest";
 
 // ---------------------------------------------------------------------------
 // State → Clean Core Level mapping
