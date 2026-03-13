@@ -81,11 +81,8 @@ export const ObjectTypeFilterSchema = z
   .string()
   .optional()
   .describe(
-    "Filter by TADIR object type. " +
-      "Common types: CLAS (Class), INTF (Interface), DDLS (CDS View), " +
-      "TABL (Table/Structure), DTEL (Data Element), FUGR (Function Group), " +
-      "BDEF (RAP Behavior Definition), SRVB (Service Binding), SRVD (Service Definition), " +
-      "DDLX (Metadata Extension), EVTB (RAP Event Binding). " +
+    "Filter by TADIR object type (e.g., 'CLAS', 'DDLS', 'TABL'). " +
+      "Use the sap_list_object_types tool to discover all available types and their counts. " +
       "Leave empty to search all types."
   );
 

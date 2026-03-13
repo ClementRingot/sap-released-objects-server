@@ -211,6 +211,29 @@ export function registerTools(server: McpServer): void {
           indexedCandidates = store.allIndexed;
         }
 
+        // --- Early exit if the requested object_type doesn't exist in the dataset ---
+        if (object_type && indexedCandidates.length === 0) {
+          const availableTypes = [...store.indexedByType.entries()]
+            .map(([type, items]) => ({ type, count: items.length }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 15)
+            .map(({ type, count }) => {
+              const desc = OBJECT_TYPE_DESCRIPTIONS[type] ?? "";
+              return `  ${type}${desc ? ` (${desc})` : ""}: ${count} objects`;
+            })
+            .join("\n");
+
+          return {
+            content: [{
+              type: "text" as const,
+              text: `Object type '${object_type}' does not exist in the loaded dataset ` +
+                `(system: ${system_type}, version: ${version}).\n\n` +
+                `Available object types:\n${availableTypes}\n\n` +
+                `Use sap_list_object_types for a complete list with level breakdown.`,
+            }],
+          };
+        }
+
         // --- Apply filters BEFORE scoring ---
         const allowedLevels = getLevelsUpTo(clean_core_level);
         let filtered = indexedCandidates.filter((idx) =>
