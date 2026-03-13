@@ -164,11 +164,12 @@ export function tokenizeQuery(query: string): {
 /**
  * Score an indexed object against the parsed query.
  *
- * score = exactMatch       × 1000   (full objectName === query)
- *       + tokenMatches     × 10     (query token fully matches a name token)
- *       + partialTokenMatches × 3   (query token is a substring of a name token, or vice-versa)
- *       + componentMatch   × 5      (query token matches an applicationComponent segment)
- *       + nameContains     × 2      (raw query is a substring of objectName — backward compat)
+ * score = exactMatch          × 1000  (full objectName === query)
+ *       + tokenMatches        × 10    (query token fully matches a name token)
+ *       + partialTokenMatches × 3     (query token ⊂ name token, or name token ⊂ query token if len ≥ 4)
+ *       + componentMatch      × 5     (query token matches an applicationComponent segment)
+ *       + nameContains        × 8     (raw query is a substring of objectName)
+ *       + namePrefix          × 20    (objectName starts with the raw query — very strong signal)
  */
 export function scoreObject(
   indexed: IndexedObject,
@@ -176,10 +177,11 @@ export function scoreObject(
   rawQuery: string,
 ): number {
   const { object, nameTokens, componentTokens } = indexed;
+  const nameUpper = object.objectName.toUpperCase();
+  const queryUpper = rawQuery.toUpperCase();
 
   // 1. Exact match on full object name
-  const exactMatch =
-    object.objectName.toUpperCase() === rawQuery.toUpperCase() ? 1 : 0;
+  const exactMatch = nameUpper === queryUpper ? 1 : 0;
 
   // 2. Token-level matching
   let tokenMatches = 0;
@@ -194,7 +196,12 @@ export function scoreObject(
       if (nt === qt) {
         fullMatch = true;
         break;
-      } else if (nt.includes(qt) || qt.includes(nt)) {
+      } else if (nt.includes(qt)) {
+        // Name token contains query token (e.g. "handlingunitheader" contains "handlingunit")
+        partialMatch = true;
+      } else if (qt.includes(nt) && nt.length >= 4) {
+        // Query token contains name token, but only if the name token is long enough.
+        // This prevents spurious matches like "it" (2 chars) inside "handlingunit".
         partialMatch = true;
       }
     }
@@ -205,24 +212,27 @@ export function scoreObject(
       partialTokenMatches++;
     }
 
-    // Component-level matching (both directions: "pur" in "purchase" or "purchase" contains "pur")
+    // Component-level matching (with same length guard for reverse containment)
     for (const ct of componentTokens) {
-      if (ct === qt || ct.includes(qt) || qt.includes(ct)) {
+      if (ct === qt || ct.includes(qt) || (qt.includes(ct) && ct.length >= 4)) {
         componentMatch++;
         break;
       }
     }
   }
 
-  // 3. Backward-compatibility: raw query substring in object name
-  const nameContains =
-    object.objectName.toUpperCase().includes(rawQuery.toUpperCase()) ? 1 : 0;
+  // 3. Raw query substring in object name
+  const nameContains = nameUpper.includes(queryUpper) ? 1 : 0;
+
+  // 4. Object name starts with raw query (very strong signal for SAP name queries)
+  const namePrefix = nameUpper.startsWith(queryUpper) ? 1 : 0;
 
   return (
     exactMatch * 1000 +
     tokenMatches * 10 +
     partialTokenMatches * 3 +
     componentMatch * 5 +
-    nameContains * 2
+    nameContains * 8 +
+    namePrefix * 20
   );
 }
