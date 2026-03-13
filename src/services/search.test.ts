@@ -786,3 +786,57 @@ describe("compound prefix fuzzy matching", () => {
     expect(scoreFull).toBeGreaterThan(scoreAbbrev);
   });
 });
+
+// ===========================================================================
+// Multi-token coverage penalty
+// ===========================================================================
+
+describe("multi-token coverage penalty", () => {
+  it("does not penalize when all query tokens match", () => {
+    const idx = makeIndexed({ objectName: "I_PURCHASEORDERITEM" });
+    const s = score("purchase order", idx);
+    // compound match → full coverage → no penalty
+    expect(s).toBe(31);
+  });
+
+  it("penalizes single-token match on 2-token query", () => {
+    const idx = makeIndexed({ objectName: "CL_ORDER_HELPER" });
+    const fullScore = score("order", idx);   // single-token query → no penalty
+    const penalized = score("purchase order", idx); // "purchase" doesn't match
+    // "order" full token match (10) + nameContains "ORDER" in "CL_ORDER_HELPER" (8) = 18
+    expect(fullScore).toBe(18);
+    expect(penalized).toBeLessThan(fullScore);
+  });
+
+  it("does not penalize single-token queries", () => {
+    const idx = makeIndexed({ objectName: "CL_ORDER_HELPER" });
+    const s = score("order", idx);
+    // full token match (10) + nameContains (8) = 18
+    expect(s).toBe(18); // unchanged
+  });
+
+  it("compounds correctly imply full coverage", () => {
+    const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+    const s = score("handling unit", idx);
+    expect(s).toBe(31); // compoundPrefix → no penalty
+  });
+
+  it("compoundPrefixFuzzy credits only 2 tokens, not all", () => {
+    const idx = makeIndexed({ objectName: "I_PURORDSCHEDGLINE" });
+
+    // 2-token: fuzzy matches both → full coverage → no penalty
+    const s2 = score("purchase order", idx);
+    expect(s2).toBe(12);
+
+    // 3-token with irrelevant third word: fuzzy credits 2, "banana" = 0 → coverage 2/3
+    const s3 = score("purchase order banana", idx);
+    expect(s3).toBeLessThan(s2);
+  });
+
+  it("penalizes harder with 3-token query and 1 match", () => {
+    const idx = makeIndexed({ objectName: "CL_ORDER_HELPER" });
+    const s2 = score("purchase order", idx);     // 1/2 match
+    const s3 = score("purchase order item", idx); // 1/3 match
+    expect(s3).toBeLessThan(s2); // more tokens unmatched → more penalty
+  });
+});

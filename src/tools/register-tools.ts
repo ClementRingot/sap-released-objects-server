@@ -152,6 +152,12 @@ export function registerTools(server: McpServer): void {
         `Use this tool to find released APIs for ABAP Cloud development, ` +
         `check if a specific object is available for your target system, ` +
         `or discover alternatives when an object is not released.\n\n` +
+        `SEARCH TIPS:\n` +
+        `- Use separate words for business concepts: 'purchase order' not 'PURCHASEORDER'\n` +
+        `- Separate words trigger fuzzy matching on SAP abbreviations (e.g., 'physical inventory' finds both PHYSICALINVENTORY* and PHYSINVTRY* objects)\n` +
+        `- Use exact SAP names only when you know the precise object name (e.g., 'I_PRODUCT', 'MARA')\n` +
+        `- Combine with app_component filter for targeted results (e.g., query='inventory', app_component='MM-IM')\n` +
+        `- Keep queries to 2-3 words maximum; use filters instead of adding more words\n\n` +
         `System types:\n` +
         `- public_cloud (S/4HANA Cloud Public Edition): Only Level A Released APIs\n` +
         `- btp (BTP ABAP Environment / Steampunk): Only Level A Released APIs (separate, smaller dataset)\n` +
@@ -223,7 +229,7 @@ export function registerTools(server: McpServer): void {
         }
 
         // --- Score each candidate ---
-        const scored: Array<{ indexed: IndexedObject; score: number }> = [];
+        let scored: Array<{ indexed: IndexedObject; score: number }> = [];
         for (const idx of filtered) {
           const score = scoreObject(idx, queryTokens, query);
           if (score > 0) {
@@ -238,6 +244,18 @@ export function registerTools(server: McpServer): void {
             b.indexed.object.objectName
           );
         });
+
+        // --- Dynamic threshold: filter out low-quality tail ---
+        // Exclude exact-match bonus (1000) from threshold calculation to prevent
+        // killing all results when one object matches exactly.
+        // Example: "I_PRODUCT" exact=1038, baseScore=38, threshold=10 → keeps I_PRODUCTDESCRIPTION (31)
+        // Example: "purchase order" max=31, threshold=8 → filters single-token noise (score 6 after coverage penalty)
+        if (scored.length > 0) {
+          const topScore = scored[0].score;
+          const baseScore = topScore > 1000 ? topScore - 1000 : topScore;
+          const threshold = Math.max(Math.round(baseScore * 0.25), 3);
+          scored = scored.filter(s => s.score >= threshold);
+        }
 
         const total = scored.length;
         const paginated = scored.slice(offset, offset + limit);

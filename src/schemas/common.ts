@@ -63,7 +63,15 @@ export const QuerySchema = z
   .max(200, "Query must not exceed 200 characters")
   .describe(
     "Search string to match against object names (case-insensitive). " +
-      "Examples: 'I_PRODUCT', 'CL_ABAP', 'MARA', 'BAPI_MATERIAL'."
+      "Supports two search styles:\n" +
+      "1) SAP technical names for exact/prefix matching: 'I_PRODUCT', 'CL_ABAP', 'MARA', 'BAPI_MATERIAL', '/SCWM/PACKING'\n" +
+      "2) Natural language with SEPARATE WORDS for fuzzy matching across SAP abbreviations: " +
+      "'purchase order', 'handling unit', 'physical inventory', 'delivery document'\n\n" +
+      "IMPORTANT: Prefer natural language with separate words when searching by business concept. " +
+      "SAP often abbreviates compound names (PHYSICALINVENTORY → PHYSINVTRY, PURCHASEORDER → PURCHORD). " +
+      "Separate words like 'physical inventory' will find BOTH I_PHYSICALINVENTORY* AND I_PHYSINVTRY* objects, " +
+      "while the concatenated form 'PHYSICALINVENTORY' only finds the first group. " +
+      "Keep queries to 2-3 words maximum and use app_component filter to narrow by functional area."
   );
 
 /**

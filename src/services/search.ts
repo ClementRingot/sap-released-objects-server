@@ -216,26 +216,28 @@ export function scoreObject(
   let partialTokenMatches = 0;
   let prefixMatches = 0;
   let componentMatch = 0;
+  let matchedQueryTokens = 0;
 
   for (const qt of queryTokens) {
     let fullMatch = false;
     let partialMatch = false;
     let prefixMatch = false;
+    let anyMatch = false;
 
     for (const nt of nameTokens) {
       if (nt === qt) {
         fullMatch = true;
+        anyMatch = true;
         break;
       } else if (nt.includes(qt)) {
-        // Name token contains query token (e.g. "handlingunitheader" contains "handlingunit")
         partialMatch = true;
+        anyMatch = true;
       } else if (qt.includes(nt) && nt.length >= 4) {
-        // Query token contains name token, but only if the name token is long enough.
-        // This prevents spurious matches like "it" (2 chars) inside "handlingunit".
         partialMatch = true;
+        anyMatch = true;
       } else if (prefixSimilarity(qt, nt) >= 0.5) {
-        // Tokens share a significant prefix (e.g. "physical" / "phys", "purchase" / "purch")
         prefixMatch = true;
+        anyMatch = true;
       }
     }
 
@@ -251,9 +253,12 @@ export function scoreObject(
     for (const ct of componentTokens) {
       if (ct === qt || ct.includes(qt) || (qt.includes(ct) && ct.length >= 4)) {
         componentMatch++;
+        if (!anyMatch) anyMatch = true;
         break;
       }
     }
+
+    if (anyMatch) matchedQueryTokens++;
   }
 
   // 3. Raw query substring in object name
@@ -262,13 +267,9 @@ export function scoreObject(
   // 4. Object name starts with raw query (very strong signal for SAP name queries)
   const namePrefix = nameUpper.startsWith(queryUpper) ? 1 : 0;
 
-  // 5. Compound word matching: query tokens joined together match inside a
-  //    single name token. SAP often concatenates words without separators
-  //    (e.g. I_HANDLINGUNITHEADER → token "handlingunitheader").
-  //    Query "handling unit" → joined "handlingunit" → prefix of "handlingunitheader".
+  // 5. Compound word matching
   let compoundPrefix = 0;
   let compoundContains = 0;
-
   let compoundPrefixFuzzy = 0;
 
   if (queryTokens.length > 1) {
@@ -281,7 +282,6 @@ export function scoreObject(
       }
     }
 
-    // Order-independent: all query tokens found inside one name token
     if (!compoundPrefix) {
       for (const nt of nameTokens) {
         if (queryTokens.every((qt) => nt.includes(qt))) {
@@ -291,10 +291,6 @@ export function scoreObject(
       }
     }
 
-    // Fuzzy compound prefix: try concatenating progressively shorter prefixes
-    // of each query token and check if a name token starts with the result.
-    // Handles SAP abbreviation patterns like PHYSICALINVENTORY → PHYSINVTRY,
-    // PURCHASEORDER → PURCHORD.
     if (!compoundPrefix && !compoundContains) {
       outer:
       for (const nt of nameTokens) {
@@ -311,7 +307,22 @@ export function scoreObject(
     }
   }
 
-  return (
+  // 6. Compound matches imply token coverage — but CORRECTLY:
+  //    - compoundPrefix/compoundContains use ALL queryTokens → full coverage
+  //    - compoundPrefixFuzzy only uses tokens[0] and tokens[1] → credit only 2
+  //    - nameContains/namePrefix imply the raw query appears → full coverage
+  //
+  //    BUG FIX: Previously compoundPrefixFuzzy forced matchedQueryTokens = queryTokens.length
+  //    which meant "purchase order banana" vs I_PURORDSCHEDGLINE got 100% coverage
+  //    even though "banana" matched nothing.
+  if (nameContains || namePrefix || compoundPrefix || compoundContains) {
+    matchedQueryTokens = queryTokens.length;
+  } else if (compoundPrefixFuzzy) {
+    matchedQueryTokens = Math.max(matchedQueryTokens, 2);
+  }
+
+  // 7. Compute raw score
+  let rawScore =
     exactMatch * 1000 +
     tokenMatches * 10 +
     partialTokenMatches * 3 +
@@ -321,6 +332,19 @@ export function scoreObject(
     namePrefix * 20 +
     compoundPrefix * 25 +
     compoundContains * 15 +
-    compoundPrefixFuzzy * 12
-  );
+    compoundPrefixFuzzy * 12;
+
+  // 8. Multi-token coverage penalty:
+  //    When a query has 2+ tokens, penalize objects that only match a subset.
+  //    Formula: score × (0.3 + 0.7 × coverage)
+  //    - coverage 1.0 (all tokens) → ×1.0 (no penalty)
+  //    - coverage 0.5 (1 of 2)    → ×0.65 → score 10 becomes 6
+  //    - coverage 0.33 (1 of 3)   → ×0.53 → score 10 becomes 5
+  //    - coverage 0.67 (2 of 3)   → ×0.77 → score 31 becomes 24
+  if (queryTokens.length >= 2 && matchedQueryTokens < queryTokens.length) {
+    const coverage = matchedQueryTokens / queryTokens.length;
+    rawScore = Math.round(rawScore * (0.3 + 0.7 * coverage));
+  }
+
+  return rawScore;
 }
