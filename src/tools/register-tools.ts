@@ -4,8 +4,9 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { SAPObject, CleanCoreLevel, SystemType, DataStore } from "../types.js";
+import type { SAPObject, CleanCoreLevel, SystemType, DataStore, IndexedObject } from "../types.js";
 import { loadData, discoverPCEVersions } from "../services/data-loader.js";
+import { tokenizeQuery, scoreObject } from "../services/search.js";
 import {
   OBJECT_TYPE_DESCRIPTIONS,
   CHARACTER_LIMIT,
@@ -66,7 +67,8 @@ function needsClassicApis(
   level: CleanCoreLevel,
   systemType: SystemType
 ): boolean {
-  if (systemType === "public_cloud") return false;
+  // public_cloud and btp only have Level A — no classic APIs
+  if (systemType === "public_cloud" || systemType === "btp") return false;
   return LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf("B");
 }
 
@@ -77,7 +79,10 @@ async function getStore(
   cleanCoreLevel: CleanCoreLevel
 ): Promise<DataStore> {
   const includeClassic = needsClassicApis(cleanCoreLevel, systemType);
-  const effectiveVersion = systemType === "public_cloud" ? "latest" : normalizeVersion(version);
+  const effectiveVersion =
+    systemType === "public_cloud" || systemType === "btp"
+      ? "latest"
+      : normalizeVersion(version);
   return loadData(systemType, effectiveVersion, includeClassic);
 }
 
@@ -148,7 +153,8 @@ export function registerTools(server: McpServer): void {
         `check if a specific object is available for your target system, ` +
         `or discover alternatives when an object is not released.\n\n` +
         `System types:\n` +
-        `- public_cloud (BTP / S/4HANA Cloud Public): Only Level A Released APIs\n` +
+        `- public_cloud (S/4HANA Cloud Public Edition): Only Level A Released APIs\n` +
+        `- btp (BTP ABAP Environment / Steampunk): Only Level A Released APIs (separate, smaller dataset)\n` +
         `- private_cloud / on_premise: Levels A-D available, version-specific\n\n` +
         `Clean Core Levels (cumulative filter):\n` +
         `- A: Released APIs only (ABAP Cloud, upgrade-safe)\n` +
@@ -186,56 +192,61 @@ export function registerTools(server: McpServer): void {
     }) => {
       try {
         const store = await getStore(system_type, version, clean_core_level);
-        const queryUpper = query.toUpperCase();
 
-        // Collect candidates from all objects
-        let candidates: SAPObject[] = [];
+        // --- Tokenize the query ---
+        const { tokens: queryTokens } = tokenizeQuery(query);
 
-        // If object_type is specified, narrow the search
+        // --- Get indexed candidates (optionally narrowed by type) ---
+        let indexedCandidates: IndexedObject[];
         if (object_type) {
-          const typeObjects = store.byType.get(object_type.toUpperCase()) ?? [];
-          candidates = typeObjects.filter((obj) =>
-            obj.objectName.toUpperCase().includes(queryUpper)
-          );
+          indexedCandidates =
+            store.indexedByType.get(object_type.toUpperCase()) ?? [];
         } else {
-          for (const obj of store.objectsMap.values()) {
-            if (obj.objectName.toUpperCase().includes(queryUpper)) {
-              candidates.push(obj);
-            }
+          indexedCandidates = store.allIndexed;
+        }
+
+        // --- Apply filters BEFORE scoring ---
+        const allowedLevels = getLevelsUpTo(clean_core_level);
+        let filtered = indexedCandidates.filter((idx) =>
+          allowedLevels.has(idx.object.cleanCoreLevel)
+        );
+
+        if (app_component) {
+          const compUpper = app_component.toUpperCase();
+          filtered = filtered.filter((idx) =>
+            idx.object.applicationComponent.toUpperCase().includes(compUpper)
+          );
+        }
+
+        if (state) {
+          filtered = filtered.filter((idx) => idx.object.state === state);
+        }
+
+        // --- Score each candidate ---
+        const scored: Array<{ indexed: IndexedObject; score: number }> = [];
+        for (const idx of filtered) {
+          const score = scoreObject(idx, queryTokens, query);
+          if (score > 0) {
+            scored.push({ indexed: idx, score });
           }
         }
 
-        // Filter by level
-        candidates = filterByLevel(candidates, clean_core_level);
-
-        // Filter by app component
-        if (app_component) {
-          const compUpper = app_component.toUpperCase();
-          candidates = candidates.filter((obj) =>
-            obj.applicationComponent.toUpperCase().includes(compUpper)
+        // --- Sort by score descending, then alphabetically by name ---
+        scored.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.indexed.object.objectName.localeCompare(
+            b.indexed.object.objectName
           );
-        }
-
-        // Filter by state
-        if (state) {
-          candidates = candidates.filter((obj) => obj.state === state);
-        }
-
-        // Sort: released first, then by name
-        candidates.sort((a, b) => {
-          if (a.state === "released" && b.state !== "released") return -1;
-          if (a.state !== "released" && b.state === "released") return 1;
-          return a.objectName.localeCompare(b.objectName);
         });
 
-        const total = candidates.length;
-        const paginated = candidates.slice(offset, offset + limit);
+        const total = scored.length;
+        const paginated = scored.slice(offset, offset + limit);
         const hasMore = total > offset + paginated.length;
 
         if (paginated.length === 0) {
           const levelInfo =
-            system_type === "public_cloud" && clean_core_level !== "A"
-              ? " Note: public_cloud systems only have Level A objects. Try private_cloud or on_premise for Levels B-D."
+            (system_type === "public_cloud" || system_type === "btp") && clean_core_level !== "A"
+              ? ` Note: ${system_type} systems only have Level A objects. Try private_cloud or on_premise for Levels B-D.`
               : "";
           return {
             content: [
@@ -255,7 +266,17 @@ export function registerTools(server: McpServer): void {
           };
         }
 
-        const lines = paginated.map((obj) => formatObject(obj, true));
+        // --- Compute normalized relevance (0–100) ---
+        const maxScore = scored[0].score; // first element has highest score
+
+        const lines = paginated.map(({ indexed, score }) => {
+          const relevance = Math.round((score / maxScore) * 100);
+          return (
+            formatObject(indexed.object, true) +
+            `\n  Relevance: ${relevance}/100 (score: ${score})`
+          );
+        });
+
         const header =
           `Found ${total} objects matching '${query}' ` +
           `(system: ${system_type}, level: ≤${clean_core_level}, ` +

@@ -10,8 +10,11 @@ const GITHUB_RAW_BASE =
 // Level A - Released APIs
 // ---------------------------------------------------------------------------
 
-/** Public Cloud / BTP - always uses latest */
+/** S/4HANA Cloud Public Edition - always uses latest */
 export const RELEASED_LATEST_URL = `${GITHUB_RAW_BASE}/objectReleaseInfoLatest.json`;
+
+/** BTP ABAP Environment / Steampunk - always uses latest */
+export const RELEASED_BTP_LATEST_URL = `${GITHUB_RAW_BASE}/objectReleaseInfo_BTPLatest.json`;
 
 /** Private Cloud / On-Premise - latest version */
 export const RELEASED_PCE_LATEST_URL = `${GITHUB_RAW_BASE}/objectReleaseInfo_PCELatest.json`;

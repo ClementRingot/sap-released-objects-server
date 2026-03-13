@@ -61,7 +61,8 @@ Then add to your MCP client config:
 - **Find successors** for deprecated or non-released objects
 - **Clean Core compliance check** for a list of objects (with compliance rate)
 - **Statistics** — counts by level, type, and application component
-- **Multi-system support** — Public Cloud, Private Cloud, On-Premise
+- **Smart search** — multi-token scoring with relevance ranking (e.g. `"purchase order"` finds `I_PURCHASEORDER`)
+- **Multi-system support** — S/4HANA Cloud Public, BTP ABAP Environment, Private Cloud, On-Premise
 - **Dynamic versioning** — PCE versions discovered automatically from the SAP repository
 - **Dual transport** — hosted remote server or local stdio executable
 
@@ -75,7 +76,7 @@ Since August 2025, SAP replaced the 3-tier model with the **Clean Core Level Con
 
 | Level | Description | Data Source | Upgrade Safety |
 | --- | --- | --- | --- |
-| **A** | Released APIs (ABAP Cloud) | `objectReleaseInfoLatest.json` | ✅ Upgrade-safe |
+| **A** | Released APIs (ABAP Cloud) | `objectReleaseInfoLatest.json` (S/4HANA Cloud Public), `objectReleaseInfo_BTPLatest.json` (BTP), `objectReleaseInfo_PCE*.json` (PCE) | ✅ Upgrade-safe |
 | **B** | Classic APIs | `objectClassifications_SAP.json` | ⚠️ Upgrade-stable |
 | **C** | Internal / unclassified objects | Uncatalogued objects | 🟡 Manageable risk |
 | **D** | noAPI (not recommended) | Objects marked `noAPI` | 🔴 High risk |
@@ -84,14 +85,14 @@ Since August 2025, SAP replaced the 3-tier model with the **Clean Core Level Con
 
 ### `sap_search_objects`
 
-Search for objects with advanced filters.
+Search for objects with advanced filters. Supports both exact SAP object names (`MARA`, `I_PURCHASEORDER`) and natural language queries (`purchase order`, `warehouse task`, `send email`). Results are ranked by relevance using a multi-token scoring algorithm.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| `query` | string | *(required)* | Search term (e.g. `I_PRODUCT`, `MARA`) |
-| `system_type` | enum | `public_cloud` | `public_cloud`, `private_cloud`, `on_premise` |
+| `query` | string | *(required)* | Search term — exact name or natural language (e.g. `I_PRODUCT`, `purchase order`) |
+| `system_type` | enum | `public_cloud` | `public_cloud`, `btp`, `private_cloud`, `on_premise` |
 | `clean_core_level` | enum | `A` | Maximum cumulative level: `A`, `B`, `C`, or `D` |
-| `version` | string | `latest` | PCE version (e.g. `2025`, `2023_3`) |
+| `version` | string | `latest` | PCE version (e.g. `2025`, `2023_3`). Ignored for `public_cloud` and `btp` |
 | `object_type` | string | *(all)* | TADIR filter (e.g. `CLAS`, `DDLS`, `TABL`) |
 | `app_component` | string | *(all)* | Application component (e.g. `MM-PUR`, `FI-GL`) |
 | `state` | enum | *(all)* | Filter by specific state |
@@ -106,7 +107,7 @@ Get full details of a specific object including its Clean Core assessment, relea
 | --- | --- | --- | --- |
 | `object_type` | string | *(required)* | TADIR type (e.g. `TABL`, `CLAS`, `DDLS`) |
 | `object_name` | string | *(required)* | Object name (e.g. `MARA`, `CL_GUI_ALV_GRID`) |
-| `system_type` | enum | `public_cloud` | `public_cloud`, `private_cloud`, `on_premise` |
+| `system_type` | enum | `public_cloud` | `public_cloud`, `btp`, `private_cloud`, `on_premise` |
 
 ### `sap_find_successor`
 
@@ -140,12 +141,27 @@ List all available TADIR object types with counts per Clean Core level. No requi
 
 Statistical overview of the repository — total counts, breakdown by level, by object type, and by application component. No required parameters.
 
+## System Types
+
+| System Type | Description | Data Source | Levels | Versioned |
+| --- | --- | --- | --- | --- |
+| `public_cloud` | S/4HANA Cloud Public Edition | `objectReleaseInfoLatest.json` | A only | No |
+| `btp` | BTP ABAP Environment / Steampunk | `objectReleaseInfo_BTPLatest.json` | A only | No |
+| `private_cloud` | S/4HANA Cloud Private Edition | `objectReleaseInfo_PCE*.json` | A–D | Yes |
+| `on_premise` | S/4HANA On-Premise | `objectReleaseInfo_PCE*.json` | A–D | Yes |
+
+> **Note:** `public_cloud` and `btp` use different datasets — BTP ABAP Environment has a smaller, separate catalogue of released APIs. Use `btp` when developing for SAP BTP ABAP Environment (Steampunk).
+
 ## Usage Examples
 
 ```
 You:    "Is table MARA available in ABAP Cloud?"
 Agent:  → calls sap_get_object_details(TABL, MARA, public_cloud)
         → "MARA is deprecated. Successor: I_PRODUCT (CDS view)"
+
+You:    "Find released objects related to purchase orders"
+Agent:  → calls sap_search_objects(query="purchase order")
+        → Returns I_PURCHASEORDER, I_PURCHASEORDERITEM, etc. ranked by relevance
 
 You:    "Find all released CDS views for the MM-PUR module"
 Agent:  → calls sap_search_objects(query="I_", object_type="DDLS", app_component="MM-PUR")
@@ -154,6 +170,10 @@ Agent:  → calls sap_search_objects(query="I_", object_type="DDLS", app_compone
 You:    "My code uses BSEG, MARA, CL_GUI_ALV_GRID. Is it Clean Core?"
 Agent:  → calls sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI_ALV_GRID")
         → "Compliance rate: 0% — none of these objects are Level A"
+
+You:    "What's available for sending emails on BTP?"
+Agent:  → calls sap_search_objects(query="send email", system_type="btp")
+        → Returns relevant BTP ABAP Environment APIs
 ```
 
 ## Building Standalone Executables

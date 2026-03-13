@@ -15,10 +15,14 @@ import type {
   CleanCoreLevel,
   SystemType,
   GitHubContentEntry,
+  IndexedObject,
 } from "../types.js";
+
+import { tokenizeSAPName, tokenizeComponent } from "./search.js";
 
 import {
   RELEASED_LATEST_URL,
+  RELEASED_BTP_LATEST_URL,
   RELEASED_PCE_LATEST_URL,
   getReleasedPCEVersionURL,
   CLASSIC_API_SAP_URL,
@@ -117,6 +121,9 @@ function getReleasedURL(systemType: SystemType, version: string): string {
   if (systemType === "public_cloud") {
     return RELEASED_LATEST_URL;
   }
+  if (systemType === "btp") {
+    return RELEASED_BTP_LATEST_URL;
+  }
   // private_cloud or on_premise
   if (version === "latest") {
     return RELEASED_PCE_LATEST_URL;
@@ -168,15 +175,12 @@ function normalizeEntry(
 // ---------------------------------------------------------------------------
 
 function buildStore(objects: SAPObject[], sourceId: string): DataStore {
+  // --- Pass 1: deduplicate (released wins over classicApi) ---
   const objectsMap = new Map<string, SAPObject>();
-  const byType = new Map<string, SAPObject[]>();
-  const byLevel = new Map<CleanCoreLevel, SAPObject[]>();
-  const byAppComponent = new Map<string, SAPObject[]>();
 
   for (const obj of objects) {
     const key = `${obj.objectType}:${obj.objectName}`;
 
-    // If duplicate, keep released source over classicApi
     if (objectsMap.has(key)) {
       const existing = objectsMap.get(key)!;
       if (existing.source === "released" && obj.source === "classicApi") {
@@ -185,23 +189,44 @@ function buildStore(objects: SAPObject[], sourceId: string): DataStore {
     }
 
     objectsMap.set(key, obj);
+  }
 
-    // Index by type
+  // --- Pass 2: build all indexes from deduplicated objects ---
+  const byType = new Map<string, SAPObject[]>();
+  const byLevel = new Map<CleanCoreLevel, SAPObject[]>();
+  const byAppComponent = new Map<string, SAPObject[]>();
+  const allIndexed: IndexedObject[] = [];
+  const indexedByType = new Map<string, IndexedObject[]>();
+
+  for (const obj of objectsMap.values()) {
+    // Type index
     const typeArr = byType.get(obj.objectType) ?? [];
     typeArr.push(obj);
     byType.set(obj.objectType, typeArr);
 
-    // Index by level
+    // Level index
     const levelArr = byLevel.get(obj.cleanCoreLevel) ?? [];
     levelArr.push(obj);
     byLevel.set(obj.cleanCoreLevel, levelArr);
 
-    // Index by application component
+    // Component index
     if (obj.applicationComponent) {
       const compArr = byAppComponent.get(obj.applicationComponent) ?? [];
       compArr.push(obj);
       byAppComponent.set(obj.applicationComponent, compArr);
     }
+
+    // Pre-compute token index
+    const indexed: IndexedObject = {
+      object: obj,
+      nameTokens: tokenizeSAPName(obj.objectName),
+      componentTokens: tokenizeComponent(obj.applicationComponent),
+    };
+    allIndexed.push(indexed);
+
+    const typeIdxArr = indexedByType.get(obj.objectType) ?? [];
+    typeIdxArr.push(indexed);
+    indexedByType.set(obj.objectType, typeIdxArr);
   }
 
   return {
@@ -209,6 +234,8 @@ function buildStore(objects: SAPObject[], sourceId: string): DataStore {
     byType,
     byLevel,
     byAppComponent,
+    allIndexed,
+    indexedByType,
     loadedAt: new Date(),
     sourceId,
   };

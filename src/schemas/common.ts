@@ -8,11 +8,12 @@ import { z } from "zod";
  * System type determines data source and available Clean Core Levels.
  */
 export const SystemTypeSchema = z
-  .enum(["public_cloud", "private_cloud", "on_premise"])
+  .enum(["public_cloud", "btp", "private_cloud", "on_premise"])
   .default("public_cloud")
   .describe(
     "SAP system type. " +
-      "'public_cloud' = BTP / S/4HANA Cloud Public Edition (Level A Released APIs only). " +
+      "'public_cloud' = S/4HANA Cloud Public Edition (Level A Released APIs only). " +
+      "'btp' = BTP ABAP Environment / Steampunk (Level A Released APIs only, separate dataset from public_cloud). " +
       "'private_cloud' = S/4HANA Cloud Private Edition (Levels A-D, version-specific files available). " +
       "'on_premise' = S/4HANA on-premise (Levels A-D, version-specific files available). " +
       "Default: public_cloud."
@@ -33,7 +34,7 @@ export const CleanCoreLevelSchema = z
       "Level B: + Classic APIs (upgrade-stable, governance recommended). " +
       "Level C: + Internal/unclassified objects (manageable risk, consult changelog). " +
       "Level D: + noAPI objects (not Clean Core, should be remediated). " +
-      "For public_cloud systems, only Level A is available. " +
+      "For public_cloud and btp systems, only Level A is available. " +
       "Default: A."
   );
 
@@ -50,7 +51,7 @@ export const VersionSchema = z
       "IMPORTANT: '2022_1' = FPS01/SP01, '2023_3' = FPS03/SP03, etc. " +
       "Always use the YEAR_N format when a specific SP/FPS is requested. " +
       "Use sap_list_versions to see all currently available versions. " +
-      "Ignored for public_cloud systems. Default: latest."
+      "Ignored for public_cloud and btp systems. Default: latest."
   );
 
 /**

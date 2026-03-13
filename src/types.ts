@@ -52,11 +52,12 @@ export type CleanCoreLevel = "A" | "B" | "C" | "D";
 
 /**
  * SAP system type determines which JSON files are available.
- * - public_cloud: BTP / S/4HANA Cloud Public Edition (Level A only)
+ * - public_cloud: S/4HANA Cloud Public Edition (Level A only)
+ * - btp: BTP ABAP Environment / Steampunk (Level A only, separate dataset)
  * - private_cloud: S/4HANA Cloud Private Edition (Levels A-D, versioned)
  * - on_premise: S/4HANA on-premise (Levels A-D, versioned)
  */
-export type SystemType = "public_cloud" | "private_cloud" | "on_premise";
+export type SystemType = "public_cloud" | "btp" | "private_cloud" | "on_premise";
 
 /** Object states as they appear in JSON files, mapped to Clean Core Levels */
 export type ObjectState =
@@ -105,6 +106,15 @@ export interface SuccessorInfo {
 // Data store - in-memory indexed data
 // ============================================================================
 
+/** Pre-computed token index for an object (built once at data-load time) */
+export interface IndexedObject {
+  object: SAPObject;
+  /** Tokens extracted from objectName */
+  nameTokens: string[];
+  /** Tokens extracted from applicationComponent */
+  componentTokens: string[];
+}
+
 export interface DataStore {
   /** All objects indexed by "objectType:objectName" */
   objectsMap: Map<string, SAPObject>;
@@ -114,6 +124,10 @@ export interface DataStore {
   byLevel: Map<CleanCoreLevel, SAPObject[]>;
   /** Objects indexed by application component */
   byAppComponent: Map<string, SAPObject[]>;
+  /** Pre-computed token index — all objects */
+  allIndexed: IndexedObject[];
+  /** Pre-computed token index — grouped by objectType */
+  indexedByType: Map<string, IndexedObject[]>;
   /** Timestamp of last data load */
   loadedAt: Date;
   /** Source file identifier */
