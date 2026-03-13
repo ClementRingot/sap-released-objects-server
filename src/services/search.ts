@@ -158,6 +158,30 @@ export function tokenizeQuery(query: string): {
 }
 
 // ---------------------------------------------------------------------------
+// Prefix similarity helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the length of the longest common prefix of two strings.
+ */
+export function commonPrefixLength(a: string, b: string): number {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+/**
+ * Compute prefix similarity between two tokens.
+ * Returns the common prefix length divided by the shorter token's length,
+ * or 0 if the common prefix is fewer than 3 characters.
+ */
+export function prefixSimilarity(a: string, b: string): number {
+  const prefixLen = commonPrefixLength(a, b);
+  if (prefixLen < 3) return 0;
+  return prefixLen / Math.min(a.length, b.length);
+}
+
+// ---------------------------------------------------------------------------
 // Scoring algorithm
 // ---------------------------------------------------------------------------
 
@@ -167,11 +191,13 @@ export function tokenizeQuery(query: string): {
  * score = exactMatch          × 1000  (full objectName === query)
  *       + tokenMatches        × 10    (query token fully matches a name token)
  *       + partialTokenMatches × 3     (query token ⊂ name token, or name token ⊂ query token if len ≥ 4)
+ *       + prefixMatches       × 2     (query token shares a significant prefix with a name token)
  *       + componentMatch      × 5     (query token matches an applicationComponent segment)
  *       + nameContains        × 8     (raw query is a substring of objectName)
  *       + namePrefix          × 20    (objectName starts with the raw query — very strong signal)
  *       + compoundPrefix      × 25    (joined query tokens form a prefix of a name token)
  *       + compoundContains    × 15    (all query tokens found inside one name token, any order)
+ *       + compoundPrefixFuzzy × 12    (concatenated prefixes of query tokens match start of a name token)
  */
 export function scoreObject(
   indexed: IndexedObject,
@@ -188,11 +214,13 @@ export function scoreObject(
   // 2. Token-level matching
   let tokenMatches = 0;
   let partialTokenMatches = 0;
+  let prefixMatches = 0;
   let componentMatch = 0;
 
   for (const qt of queryTokens) {
     let fullMatch = false;
     let partialMatch = false;
+    let prefixMatch = false;
 
     for (const nt of nameTokens) {
       if (nt === qt) {
@@ -205,6 +233,9 @@ export function scoreObject(
         // Query token contains name token, but only if the name token is long enough.
         // This prevents spurious matches like "it" (2 chars) inside "handlingunit".
         partialMatch = true;
+      } else if (prefixSimilarity(qt, nt) >= 0.5) {
+        // Tokens share a significant prefix (e.g. "physical" / "phys", "purchase" / "purch")
+        prefixMatch = true;
       }
     }
 
@@ -212,6 +243,8 @@ export function scoreObject(
       tokenMatches++;
     } else if (partialMatch) {
       partialTokenMatches++;
+    } else if (prefixMatch) {
+      prefixMatches++;
     }
 
     // Component-level matching (with same length guard for reverse containment)
@@ -236,6 +269,8 @@ export function scoreObject(
   let compoundPrefix = 0;
   let compoundContains = 0;
 
+  let compoundPrefixFuzzy = 0;
+
   if (queryTokens.length > 1) {
     const joinedQuery = queryTokens.join("");
 
@@ -255,16 +290,37 @@ export function scoreObject(
         }
       }
     }
+
+    // Fuzzy compound prefix: try concatenating progressively shorter prefixes
+    // of each query token and check if a name token starts with the result.
+    // Handles SAP abbreviation patterns like PHYSICALINVENTORY → PHYSINVTRY,
+    // PURCHASEORDER → PURCHORD.
+    if (!compoundPrefix && !compoundContains) {
+      outer:
+      for (const nt of nameTokens) {
+        for (let len1 = queryTokens[0].length; len1 >= 3; len1--) {
+          for (let len2 = queryTokens[1].length; len2 >= 3; len2--) {
+            const prefix = queryTokens[0].slice(0, len1) + queryTokens[1].slice(0, len2);
+            if (nt.startsWith(prefix)) {
+              compoundPrefixFuzzy = 1;
+              break outer;
+            }
+          }
+        }
+      }
+    }
   }
 
   return (
     exactMatch * 1000 +
     tokenMatches * 10 +
     partialTokenMatches * 3 +
+    prefixMatches * 2 +
     componentMatch * 5 +
     nameContains * 8 +
     namePrefix * 20 +
     compoundPrefix * 25 +
-    compoundContains * 15
+    compoundContains * 15 +
+    compoundPrefixFuzzy * 12
   );
 }

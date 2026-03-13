@@ -8,6 +8,8 @@ import {
   tokenizeComponent,
   tokenizeQuery,
   scoreObject,
+  commonPrefixLength,
+  prefixSimilarity,
 } from "./search.js";
 import type { SAPObject, IndexedObject } from "../types.js";
 
@@ -622,5 +624,165 @@ describe("search ranking", () => {
 
     expect(results.length).toBe(1);
     expect(results[0].name).toBe("CL_MATERIAL_SERVICE");
+  });
+});
+
+// ===========================================================================
+// commonPrefixLength
+// ===========================================================================
+
+describe("commonPrefixLength", () => {
+  it("returns full length for identical strings", () => {
+    expect(commonPrefixLength("abc", "abc")).toBe(3);
+  });
+
+  it("returns 0 for no common prefix", () => {
+    expect(commonPrefixLength("abc", "xyz")).toBe(0);
+  });
+
+  it("returns correct prefix length for partial overlap", () => {
+    expect(commonPrefixLength("physical", "phys")).toBe(4);
+    expect(commonPrefixLength("purchase", "purch")).toBe(5);
+  });
+
+  it("handles empty strings", () => {
+    expect(commonPrefixLength("", "abc")).toBe(0);
+    expect(commonPrefixLength("abc", "")).toBe(0);
+  });
+});
+
+// ===========================================================================
+// prefixSimilarity
+// ===========================================================================
+
+describe("prefixSimilarity", () => {
+  it("returns 1.0 when shorter token is exact prefix of longer", () => {
+    expect(prefixSimilarity("phys", "physical")).toBe(1.0); // 4/4
+  });
+
+  it("returns high similarity for SAP abbreviations", () => {
+    expect(prefixSimilarity("inv", "inventory")).toBe(1.0); // 3/3
+    expect(prefixSimilarity("invtry", "inventory")).toBe(0.5); // 3/6
+    expect(prefixSimilarity("purch", "purchase")).toBe(1.0); // 5/5 ("purch" is full prefix of "purchase")
+    expect(prefixSimilarity("doc", "document")).toBe(1.0); // 3/3
+  });
+
+  it("returns 0 when prefix is too short", () => {
+    expect(prefixSimilarity("it", "inventory")).toBe(0); // prefix "i" = 1 char < 3
+    expect(prefixSimilarity("ab", "abcd")).toBe(0); // prefix "ab" = 2 chars < 3
+  });
+
+  it("returns 0 for unrelated tokens", () => {
+    expect(prefixSimilarity("handling", "physical")).toBe(0);
+    expect(prefixSimilarity("order", "allegati")).toBe(0);
+  });
+});
+
+// ===========================================================================
+// Prefix matching — scoring integration tests
+// ===========================================================================
+
+describe("prefix matching scoring", () => {
+  it("scores prefix match at token level for 'physical' vs 'phys' name token", () => {
+    // EDO_HR_PHYSICAL_ATTRIBUTE has nameTokens including "physical"
+    // but I_PHYSINVTRYDOCHEADER has nameToken "physinvtrydocheader"
+    // For query "physical": prefixSimilarity("physical", "physinvtrydocheader")
+    // = commonPrefix "phys" = 4, min(8, 18) = 8, ratio = 4/8 = 0.5 → matches
+    const idx = makeIndexed({ objectName: "I_PHYSINVTRYDOCHEADER" });
+    const s = score("physical", idx);
+    expect(s).toBeGreaterThan(0);
+  });
+
+  it("does not give prefix match for unrelated short tokens", () => {
+    // "handling" vs "phys..." → no common prefix
+    const idx = makeIndexed({ objectName: "I_PHYSINVTRYDOCHEADER" });
+    const s = score("handling", idx);
+    expect(s).toBe(0);
+  });
+});
+
+// ===========================================================================
+// Compound prefix fuzzy matching — ranking integration tests
+// ===========================================================================
+
+describe("compound prefix fuzzy matching", () => {
+  /**
+   * Helper: given a query and a list of object names, returns them sorted
+   * by score descending (same logic as register-tools.ts).
+   */
+  function rank(
+    query: string,
+    objects: Array<Partial<SAPObject> & Pick<SAPObject, "objectName">>,
+  ): Array<{ name: string; score: number }> {
+    const { tokens } = tokenizeQuery(query);
+    return objects
+      .map((o) => {
+        const idx = makeIndexed(o);
+        return {
+          name: o.objectName,
+          score: scoreObject(idx, tokens, query),
+        };
+      })
+      .filter((r) => r.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.name.localeCompare(b.name);
+      });
+  }
+
+  it("ranks PHYSINVTRY* objects for 'physical inventory' query via prefix matching", () => {
+    const results = rank("physical inventory", [
+      { objectName: "I_PHYSICALINVENTORYDOCUMENTTP" },
+      { objectName: "I_PHYSINVTRYDOCHEADER" },
+      { objectName: "I_PHYSINVTRYDOCITEM" },
+      { objectName: "I_PHYSINVTRYCOUNTSTS" },
+      { objectName: "EDO_HR_PHYSICAL_ATTRIBUTE", applicationComponent: "CA-GTF-CSC-EDO-HR" },
+    ]);
+
+    // PHYSICALINVENTORY* should still rank first (compound match)
+    expect(results[0].name).toBe("I_PHYSICALINVENTORYDOCUMENTTP");
+
+    // PHYSINVTRY* objects must now appear (they were previously score 0)
+    const physInvResults = results.filter(r => r.name.startsWith("I_PHYSINVTRY"));
+    expect(physInvResults.length).toBe(3);
+    expect(physInvResults[0].score).toBeGreaterThan(0);
+  });
+
+  it("ranks abbreviated purchase order objects for 'purchase order' query", () => {
+    const results = rank("purchase order", [
+      { objectName: "I_PURCHASEORDERITEM" },
+      { objectName: "I_PURCHORDSCHEDGLINE" },
+      { objectName: "CL_SOME_UNRELATED_THING" },
+    ]);
+
+    // I_PURCHASEORDERITEM ranks first (compound match)
+    expect(results[0].name).toBe("I_PURCHASEORDERITEM");
+    // I_PURCHORDSCHEDGLINE should now appear via compoundPrefixFuzzy
+    expect(results.some(r => r.name === "I_PURCHORDSCHEDGLINE")).toBe(true);
+  });
+
+  it("still scores 0 for EDO objects against HANDLINGUNIT query with prefix matching", () => {
+    const edoCases = [
+      "EDO_IT_ALLEGATI_TYPE_TAB2",
+      "EDO_IT_ALTRI_DATI_GESTION_TAB2",
+    ];
+    for (const name of edoCases) {
+      const idx = makeIndexed({
+        objectName: name,
+        applicationComponent: "CA-GTF-CSC-EDO-IT",
+      });
+      const s = score("I_HANDLINGUNIT", idx);
+      expect(s, `${name} should still score 0`).toBe(0);
+    }
+  });
+
+  it("compound prefix fuzzy is weaker than compound prefix", () => {
+    const idxFull = makeIndexed({ objectName: "I_PHYSICALINVENTORYDOCUMENTTP" });
+    const idxAbbrev = makeIndexed({ objectName: "I_PHYSINVTRYDOCHEADER" });
+
+    const scoreFull = score("physical inventory", idxFull);
+    const scoreAbbrev = score("physical inventory", idxAbbrev);
+
+    expect(scoreFull).toBeGreaterThan(scoreAbbrev);
   });
 });
