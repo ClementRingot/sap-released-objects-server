@@ -28,13 +28,13 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const LEVEL_ORDER: CleanCoreLevel[] = ["A", "B", "C", "D"];
+export const LEVEL_ORDER: CleanCoreLevel[] = ["A", "B", "C", "D"];
 
 /**
  * Normalize version strings from common formats to the internal YEAR_FPS format.
  * Handles: "2022 SP01" → "2022_1", "2023 FPS03" → "2023_3", "2022.1" → "2022_1", etc.
  */
-function normalizeVersion(version: string): string {
+export function normalizeVersion(version: string): string {
   const trimmed = version.trim();
 
   // Already valid: "latest", "2022", "2022_1", etc.
@@ -57,13 +57,13 @@ function normalizeVersion(version: string): string {
 }
 
 /** Get all levels up to and including the target level (cumulative) */
-function getLevelsUpTo(maxLevel: CleanCoreLevel): Set<CleanCoreLevel> {
+export function getLevelsUpTo(maxLevel: CleanCoreLevel): Set<CleanCoreLevel> {
   const idx = LEVEL_ORDER.indexOf(maxLevel);
   return new Set(LEVEL_ORDER.slice(0, idx + 1));
 }
 
 /** Determine if Classic APIs should be loaded based on level and system type */
-function needsClassicApis(
+export function needsClassicApis(
   level: CleanCoreLevel,
   systemType: SystemType
 ): boolean {
@@ -87,7 +87,7 @@ async function getStore(
 }
 
 /** Filter objects by Clean Core Level (cumulative) */
-function filterByLevel(
+export function filterByLevel(
   objects: SAPObject[],
   maxLevel: CleanCoreLevel
 ): SAPObject[] {
@@ -96,7 +96,7 @@ function filterByLevel(
 }
 
 /** Format a single object for text output */
-function formatObject(obj: SAPObject, verbose: boolean = false): string {
+export function formatObject(obj: SAPObject, verbose: boolean = false): string {
   const typeDesc = OBJECT_TYPE_DESCRIPTIONS[obj.objectType] ?? obj.objectType;
   const levelLabel = `Level ${obj.cleanCoreLevel}`;
 
@@ -125,7 +125,7 @@ function formatObject(obj: SAPObject, verbose: boolean = false): string {
 }
 
 /** Truncate text if too long */
-function truncateIfNeeded(text: string): string {
+export function truncateIfNeeded(text: string): string {
   if (text.length <= CHARACTER_LIMIT) return text;
   return (
     text.slice(0, CHARACTER_LIMIT - 200) +

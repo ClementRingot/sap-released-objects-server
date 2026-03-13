@@ -1,6 +1,6 @@
 {
   "name": "sap-released-objects-mcp-server",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "MCP server for SAP Cloudification Repository - Search released objects, classic APIs, successors with Clean Core Level filtering (A/B/C/D)",
   "type": "module",
   "main": "dist/index.js",
@@ -11,6 +11,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:http": "TRANSPORT=http node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "tsc --watch",
     "bundle": "npm run build && esbuild dist/index.js --bundle --platform=node --target=node20 --format=cjs --outfile=bundle/index.cjs",
     "pkg:win": "npm run bundle && pkg bundle/index.cjs --targets node20-win-x64 --output bin/sap-released-objects-win.exe",
@@ -42,7 +44,8 @@
     "@types/node": "^22.0.0",
     "@yao-pkg/pkg": "^6.14.1",
     "esbuild": "^0.27.3",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "@yao-pkg/pkg": {

@@ -38,7 +38,7 @@ import {
 
 const cache = new Map<string, CacheEntry>();
 
-function getCacheKey(
+export function getCacheKey(
   systemType: SystemType,
   version: string,
   includeClassicApis: boolean
@@ -117,7 +117,7 @@ async function fetchJSON<T>(url: string): Promise<T> {
 // Determine which Released APIs URL to use
 // ---------------------------------------------------------------------------
 
-function getReleasedURL(systemType: SystemType, version: string): string {
+export function getReleasedURL(systemType: SystemType, version: string): string {
   if (systemType === "public_cloud") {
     return RELEASED_LATEST_URL;
   }
@@ -135,7 +135,7 @@ function getReleasedURL(systemType: SystemType, version: string): string {
 // Normalize a raw entry into a SAPObject
 // ---------------------------------------------------------------------------
 
-function normalizeEntry(
+export function normalizeEntry(
   entry: RawObjectEntry,
   source: "released" | "classicApi"
 ): SAPObject {
@@ -174,7 +174,7 @@ function normalizeEntry(
 // Build indexed DataStore from normalized objects
 // ---------------------------------------------------------------------------
 
-function buildStore(objects: SAPObject[], sourceId: string): DataStore {
+export function buildStore(objects: SAPObject[], sourceId: string): DataStore {
   // --- Pass 1: deduplicate (released wins over classicApi) ---
   const objectsMap = new Map<string, SAPObject>();
 
