@@ -170,6 +170,8 @@ export function tokenizeQuery(query: string): {
  *       + componentMatch      × 5     (query token matches an applicationComponent segment)
  *       + nameContains        × 8     (raw query is a substring of objectName)
  *       + namePrefix          × 20    (objectName starts with the raw query — very strong signal)
+ *       + compoundPrefix      × 25    (joined query tokens form a prefix of a name token)
+ *       + compoundContains    × 15    (all query tokens found inside one name token, any order)
  */
 export function scoreObject(
   indexed: IndexedObject,
@@ -227,12 +229,42 @@ export function scoreObject(
   // 4. Object name starts with raw query (very strong signal for SAP name queries)
   const namePrefix = nameUpper.startsWith(queryUpper) ? 1 : 0;
 
+  // 5. Compound word matching: query tokens joined together match inside a
+  //    single name token. SAP often concatenates words without separators
+  //    (e.g. I_HANDLINGUNITHEADER → token "handlingunitheader").
+  //    Query "handling unit" → joined "handlingunit" → prefix of "handlingunitheader".
+  let compoundPrefix = 0;
+  let compoundContains = 0;
+
+  if (queryTokens.length > 1) {
+    const joinedQuery = queryTokens.join("");
+
+    for (const nt of nameTokens) {
+      if (nt.startsWith(joinedQuery)) {
+        compoundPrefix = 1;
+        break;
+      }
+    }
+
+    // Order-independent: all query tokens found inside one name token
+    if (!compoundPrefix) {
+      for (const nt of nameTokens) {
+        if (queryTokens.every((qt) => nt.includes(qt))) {
+          compoundContains = 1;
+          break;
+        }
+      }
+    }
+  }
+
   return (
     exactMatch * 1000 +
     tokenMatches * 10 +
     partialTokenMatches * 3 +
     componentMatch * 5 +
     nameContains * 8 +
-    namePrefix * 20
+    namePrefix * 20 +
+    compoundPrefix * 25 +
+    compoundContains * 15
   );
 }

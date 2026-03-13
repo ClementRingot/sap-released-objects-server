@@ -340,6 +340,57 @@ describe("scoreObject", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Compound word matching (multi-token query vs concatenated name token)
+  // -----------------------------------------------------------------------
+  describe("compound word matching", () => {
+    it("gives compoundPrefix bonus when joined tokens prefix a name token", () => {
+      const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+      // query "handling unit" → tokens ["handling", "unit"] → joined "handlingunit"
+      // nameToken "handlingunitheader".startsWith("handlingunit") → compoundPrefix = 25
+      // + partialTokenMatches = 2 × 3 = 6
+      const s = score("handling unit", idx);
+      expect(s).toBe(6 + 25); // 31
+    });
+
+    it("gives compoundContains bonus (order-independent) when all tokens in one name token", () => {
+      const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+      // query "unit handling" (reversed) → joined "unithandling" → NOT a prefix
+      // but "handlingunitheader" contains both "unit" and "handling" → compoundContains = 15
+      const s = score("unit handling", idx);
+      expect(s).toBe(6 + 15); // 21
+    });
+
+    it("compoundPrefix beats compoundContains for correct word order", () => {
+      const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+      const correctOrder = score("handling unit", idx);
+      const reversedOrder = score("unit handling", idx);
+      expect(correctOrder).toBeGreaterThan(reversedOrder);
+    });
+
+    it("no compound bonus for single-token queries", () => {
+      const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+      // single token → compound check skipped (queryTokens.length === 1)
+      const s = score("handlingunit", idx);
+      // partial: "handlingunitheader".includes("handlingunit") → 3
+      // nameContains: "I_HANDLINGUNITHEADER".includes("HANDLINGUNIT") → 8
+      // namePrefix: no → 0
+      // no compound bonus
+      expect(s).toBe(3 + 8);
+    });
+
+    it("no compound bonus when tokens are in separate name tokens", () => {
+      const idx = makeIndexed({ objectName: "CL_HANDLING_UNIT_MANAGER" });
+      // nameTokens: ["handling", "unit", "manager"]
+      // "handling" and "unit" are separate name tokens → no single token contains both
+      // But they get full token matches (10 each) = 20
+      const s = score("handling unit", idx);
+      // full matches: 20, nameContains: "CL_HANDLING_UNIT_MANAGER".includes("handling unit")? NO
+      // compound: no single token has both → 0
+      expect(s).toBe(20);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Zero score for irrelevant objects
   // -----------------------------------------------------------------------
   describe("zero score for unrelated objects", () => {
@@ -429,6 +480,33 @@ describe("search ranking", () => {
     expect(results.length).toBe(2);
     expect(results[0].name).toBe("I_HANDLINGUNITHEADER");
     expect(results[1].name).toBe("I_HANDLINGUNITITEM");
+  });
+
+  // -----------------------------------------------------------------------
+  // Natural language "handling unit" must rank CDS views first
+  // -----------------------------------------------------------------------
+  it("ranks I_HANDLINGUNIT* above separate-token objects for 'handling unit'", () => {
+    const results = rank("handling unit", [
+      { objectName: "I_HANDLINGUNITHEADER", objectType: "DDLS", applicationComponent: "LO-HU-VDM" },
+      { objectName: "I_HANDLINGUNITITEM", objectType: "DDLS", applicationComponent: "LO-HU-VDM" },
+      { objectName: "I_HANDLINGUNITTP", objectType: "DDLS", applicationComponent: "LO-HU-API" },
+      { objectName: "EDO_TR_TRANSPORT_HANDLING_UNIT", objectType: "TABL", applicationComponent: "CA-GTF-CSC-EDO-TR" },
+      { objectName: "ES_HANDLING_UNIT", objectType: "ENHS", applicationComponent: "LO-HU-BF-2CL" },
+      { objectName: "CL_ABAP_UNIT_ASSERT", objectType: "CLAS", applicationComponent: "BC-DWB-TOO-UT" },
+    ]);
+
+    // CDS views with compound word "handlingunit*" must rank above objects
+    // where "handling" and "unit" are separate tokens
+    expect(results[0].name).toBe("I_HANDLINGUNITHEADER");
+    expect(results[1].name).toBe("I_HANDLINGUNITITEM");
+    expect(results[2].name).toBe("I_HANDLINGUNITTP");
+
+    // Objects with separate tokens should still appear but lower
+    const separateTokenObjs = results.filter(
+      (r) => r.name === "EDO_TR_TRANSPORT_HANDLING_UNIT" || r.name === "ES_HANDLING_UNIT",
+    );
+    expect(separateTokenObjs.length).toBe(2);
+    expect(separateTokenObjs[0].score).toBeLessThan(results[0].score);
   });
 
   // -----------------------------------------------------------------------
