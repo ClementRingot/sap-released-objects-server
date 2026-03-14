@@ -11,6 +11,7 @@ import {
   PCE_PREFIX_TYPES,
   CACHE_TTL_MS,
 } from "../constants.js";
+import { getAccessToken, clearTokenCache } from "./sap-oauth.js";
 
 // ---------------------------------------------------------------------------
 // In-memory cache
@@ -191,25 +192,28 @@ function extractCapabilities(obj: Record<string, unknown>): string[] {
 
 /**
  * Fetch a URL and return the body as a string.
- * Returns null if the response is not JSON (e.g. auth redirect HTML).
+ * Accepts optional extra headers (e.g. Authorization: Bearer).
  */
-function fetchUrl(url: string): Promise<{ statusCode: number; body: string }> {
+function fetchUrl(
+  url: string,
+  extraHeaders?: Record<string, string>
+): Promise<{ statusCode: number; body: string }> {
   return new Promise((resolve, reject) => {
     https.get(
       url,
       {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...extraHeaders },
         rejectUnauthorized: false,
       },
       (res) => {
-        // Handle redirects
+        // Handle redirects (but NOT auth redirects when we have a token)
         if (
           res.statusCode &&
           res.statusCode >= 300 &&
           res.statusCode < 400 &&
           res.headers.location
         ) {
-          fetchUrl(res.headers.location).then(resolve, reject);
+          fetchUrl(res.headers.location, extraHeaders).then(resolve, reject);
           res.resume();
           return;
         }
@@ -241,8 +245,27 @@ function isAuthRedirect(body: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
+ * Try to fetch a URL and parse as JSON.
+ * Returns the parsed result or null if it's an auth redirect / non-200.
+ * Sets `needsAuth` flag on the returned object when an auth redirect is detected.
+ */
+async function tryFetch(
+  url: string,
+  extraHeaders?: Record<string, string>
+): Promise<{ data: Record<string, unknown>; needsAuth: false } | { data: null; needsAuth: boolean }> {
+  const resp = await fetchUrl(url, extraHeaders);
+
+  if (resp.statusCode >= 200 && resp.statusCode < 300 && !isAuthRedirect(resp.body)) {
+    return { data: JSON.parse(resp.body) as Record<string, unknown>, needsAuth: false };
+  }
+
+  return { data: null, needsAuth: isAuthRedirect(resp.body) };
+}
+
+/**
  * Fetch an object description from api.sap.com.
  * Tries `/$value` first (full data with fields), falls back to `?$format=json`.
+ * When an auth redirect is detected, obtains an OAuth2 token via PKCE and retries.
  * Results are cached for CACHE_TTL_MS.
  */
 export async function fetchObjectDescription(
@@ -269,20 +292,21 @@ export async function fetchObjectDescription(
     return cached.data;
   }
 
-  // Strategy: try /$value first (full data), fall back to ?$format=json (metadata only)
   let result: SAPApiDescription | null = null;
+  let needsAuth = false;
 
-  // Attempt 1: /$value (full response with fields)
+  // --- Attempt 1: /$value without auth ---
   try {
     console.error(`[SAPApi] Trying /$value: ${urls.valueUrl}`);
-    const resp = await fetchUrl(urls.valueUrl);
-
-    if (resp.statusCode >= 200 && resp.statusCode < 300 && !isAuthRedirect(resp.body)) {
-      const parsed = JSON.parse(resp.body) as Record<string, unknown>;
-      result = parseValueResponse(parsed, urls.spaUrl);
+    const r = await tryFetch(urls.valueUrl);
+    if (r.data) {
+      result = parseValueResponse(r.data, urls.spaUrl);
       console.error(`[SAPApi] Got full response for ${effectiveName}`);
     } else {
-      console.error(`[SAPApi] /$value returned ${resp.statusCode} or auth redirect, trying metadata`);
+      needsAuth = r.needsAuth;
+      console.error(
+        `[SAPApi] /$value failed${needsAuth ? " (auth redirect detected)" : ""}`
+      );
     }
   } catch (err) {
     console.error(
@@ -290,20 +314,58 @@ export async function fetchObjectDescription(
     );
   }
 
-  // Attempt 2: ?$format=json (metadata only, no fields)
+  // --- Attempt 2: if auth needed, get token and retry /$value ---
+  if (!result && needsAuth) {
+    try {
+      console.error(`[SAPApi] Authenticating via OAuth2 PKCE…`);
+      const token = await getAccessToken();
+      const authHeaders = { Authorization: `Bearer ${token}` };
+
+      console.error(`[SAPApi] Retrying /$value with Bearer token`);
+      const r = await tryFetch(urls.valueUrl, authHeaders);
+      if (r.data) {
+        result = parseValueResponse(r.data, urls.spaUrl);
+        console.error(`[SAPApi] Got full response for ${effectiveName} (authenticated)`);
+      } else if (r.needsAuth) {
+        // Token may be stale, clear and retry once
+        console.error(`[SAPApi] Token rejected, clearing cache and retrying…`);
+        clearTokenCache();
+        const freshToken = await getAccessToken();
+        const freshHeaders = { Authorization: `Bearer ${freshToken}` };
+        const r2 = await tryFetch(urls.valueUrl, freshHeaders);
+        if (r2.data) {
+          result = parseValueResponse(r2.data, urls.spaUrl);
+          console.error(`[SAPApi] Got full response for ${effectiveName} (re-authenticated)`);
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[SAPApi] Authenticated /$value failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  // --- Attempt 3: ?$format=json (metadata only) ---
   if (!result) {
     try {
       console.error(`[SAPApi] Trying metadata: ${urls.metadataUrl}`);
-      const resp = await fetchUrl(urls.metadataUrl);
+      // Try without auth first
+      let r = await tryFetch(urls.metadataUrl);
 
-      if (resp.statusCode >= 200 && resp.statusCode < 300 && !isAuthRedirect(resp.body)) {
-        const parsed = JSON.parse(resp.body) as Record<string, unknown>;
-        result = parseMetadataResponse(parsed, urls.spaUrl);
+      // If auth redirect, retry with token
+      if (!r.data && r.needsAuth) {
+        console.error(`[SAPApi] Metadata needs auth, fetching token…`);
+        const token = await getAccessToken();
+        r = await tryFetch(urls.metadataUrl, { Authorization: `Bearer ${token}` });
+      }
+
+      if (r.data) {
+        result = parseMetadataResponse(r.data, urls.spaUrl);
         console.error(`[SAPApi] Got metadata response for ${effectiveName}`);
       } else {
         throw new Error(
-          `API returned status ${resp.statusCode}` +
-          (isAuthRedirect(resp.body) ? " (authentication required)" : "")
+          "API returned non-JSON response" +
+          (r.needsAuth ? " (authentication required)" : "")
         );
       }
     } catch (err) {

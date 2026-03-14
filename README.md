@@ -152,7 +152,7 @@ Fetch detailed description, capabilities, extensibility info, and field list for
 | `object_name` | string | *(required)* | Object name (e.g. `I_PRODUCT`, `I_PURCHASEORDERTP`) |
 | `system_type` | enum | `public_cloud` | `public_cloud`, `btp`, `private_cloud`, `on_premise` |
 
-> **Note:** Full field-level data may require authentication on api.sap.com. When unavailable, the tool returns basic metadata (title, status, capabilities) and a link to the full details.
+> **Note:** Some endpoints on api.sap.com (BDEF, some DDLS) require authentication. The tool handles this automatically via OAuth2 (Authorization Code + PKCE): on first use, your browser opens the SAP login page; the token is then cached locally (`~/.sap-api-hub-token.json`) so subsequent calls don't require re-authentication.
 
 ## System Types
 
