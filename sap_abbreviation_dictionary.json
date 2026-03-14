@@ -1,0 +1,961 @@
+{
+  "_metadata": {
+    "source": "github.com/SAP/abap-atc-cr-cv-s4hc (Cloudification Repository)",
+    "description": "Dictionnaire des abréviations SAP extraites des noms d'objets du Cloudification Repository",
+    "total_abbreviations": 301,
+    "total_unique_words": 204,
+    "usage": "Utilisé par un algorithme pour générer toutes les combinaisons possibles d'abréviations pour un ensemble de mots"
+  },
+  "abbreviation_to_word": {
+    "ACCT": "Account",
+    "ACCNT": "Account",
+    "ACCTG": "Accounting",
+    "ACTVTN": "Activation",
+    "ACTL": "Actual",
+    "ADDR": "Address",
+    "ADDTL": "Additional",
+    "ADM": "Administration",
+    "AGRMT": "Agreement",
+    "AGRMNT": "Agreement",
+    "ALLOC": "Allocation",
+    "ALLWD": "Allowed",
+    "AMNT": "Amount",
+    "ANA": "Analytics",
+    "APP": "Application",
+    "APPRVL": "Approval",
+    "APPRVD": "Approved",
+    "APPT": "Appointment",
+    "ASSGMT": "Assignment",
+    "ASSGN": "Assignment",
+    "ASST": "Asset",
+    "ASSOC": "Association",
+    "ATP": "Available to Promise",
+    "AUTH": "Authorization",
+    "AUTHRZTN": "Authorization",
+    "AVAIL": "Availability",
+    "AVLBLTY": "Availability",
+    "AWD": "Award",
+    "AWDG": "Awarding",
+    "BAL": "Business Application Log",
+    "BIL": "Billing",
+    "BILLG": "Billing",
+    "BLR": "Billing",
+    "BLK": "Block",
+    "BLKG": "Blocking",
+    "BNK": "Bank",
+    "BOM": "Bill of Material",
+    "BP": "Business Partner",
+    "BSC": "Basic",
+    "BSP": "Business Server Pages",
+    "BUS": "Business",
+    "CA": "Contract Account",
+    "CAL": "Calendar",
+    "CALC": "Calculation",
+    "CANCLTN": "Cancellation",
+    "CANCLN": "Cancellation",
+    "CAT": "Category",
+    "CC": "Company Code",
+    "CDS": "Core Data Services",
+    "CFMN": "Confirmation",
+    "CFG": "Configuration",
+    "CHG": "Change",
+    "CHK": "Check",
+    "CHRG": "Charge",
+    "CK": "Check",
+    "CL": "Class",
+    "CLASSFCTN": "Classification",
+    "CMPNY": "Company",
+    "CNDN": "Condition",
+    "CNDTN": "Condition",
+    "CNFMTN": "Confirmation",
+    "CNSLDTN": "Consolidation",
+    "CNTL": "Control",
+    "CNTRY": "Country",
+    "CO": "Controlling",
+    "COCODE": "Company Code",
+    "COLL": "Collection",
+    "COMM": "Communication",
+    "COMP": "Component",
+    "CONF": "Configuration",
+    "CONTRACCT": "Contract Account",
+    "CORR": "Correction",
+    "CP": "Cloud Platform",
+    "CR": "Credit",
+    "CRM": "Customer Relationship Management",
+    "CRRNCY": "Currency",
+    "CSTMR": "Customer",
+    "CTRL": "Control",
+    "CUST": "Customer",
+    "CYC": "Cycle",
+    "DB": "Database",
+    "DCSN": "Decision",
+    "DEF": "Definition",
+    "DEL": "Delivery",
+    "DELIV": "Delivery",
+    "DET": "Detail",
+    "DETS": "Details",
+    "DEX": "Data Extraction",
+    "DISC": "Discount",
+    "DISTR": "Distribution",
+    "DLP": "Delivery Processing",
+    "DMND": "Demand",
+    "DOC": "Document",
+    "DOMA": "Domain",
+    "DPNDCY": "Dependency",
+    "DSCR": "Description",
+    "DTEL": "Data Element",
+    "DTL": "Detail",
+    "EDTBL": "Editable",
+    "EFF": "Effective",
+    "ELMNT": "Element",
+    "ENHNC": "Enhancement",
+    "ENTR": "Entry",
+    "EVAL": "Evaluation",
+    "EVNT": "Event",
+    "EVT": "Event",
+    "EVTBSD": "Event Based",
+    "EWM": "Extended Warehouse Management",
+    "EXCL": "Exclude",
+    "EXP": "Expense",
+    "EXT": "External",
+    "FAC": "Factory",
+    "FCST": "Forecast",
+    "FI": "Finance",
+    "FIN": "Finance",
+    "FINL": "Final",
+    "FIX": "Fixed",
+    "FIXG": "Fixing",
+    "FLD": "Field",
+    "FLG": "Flag",
+    "FLW": "Flow",
+    "FPRNT": "Footprint",
+    "FSCM": "Financial Supply Chain Management",
+    "FUP": "Follow-Up",
+    "FUNC": "Function",
+    "FW": "Forward",
+    "FWD": "Forward",
+    "GL": "General Ledger",
+    "GR": "Goods Receipt",
+    "GRP": "Group",
+    "GRPG": "Grouping",
+    "HDR": "Header",
+    "HIER": "Hierarchy",
+    "HU": "Handling Unit",
+    "IM": "Inventory Management",
+    "INBND": "Inbound",
+    "INCTRMS": "Incoterms",
+    "INFOREC": "Info Record",
+    "INSTR": "Instruction",
+    "INSTRN": "Instruction",
+    "INT": "Internal",
+    "INV": "Invoice",
+    "INVCG": "Invoicing",
+    "INVTRY": "Inventory",
+    "ITM": "Item",
+    "JNL": "Journal",
+    "JVA": "Joint Venture Accounting",
+    "KPI": "Key Performance Indicator",
+    "LBL": "Label",
+    "LDGR": "Ledger",
+    "LFCYC": "Lifecycle",
+    "LGR": "Ledger",
+    "LNK": "Link",
+    "LOC": "Location",
+    "LOT": "Lot",
+    "LVL": "Level",
+    "MAINT": "Maintenance",
+    "MATL": "Material",
+    "MATLGRP": "Material Group",
+    "MD": "Master Data",
+    "MFG": "Manufacturing",
+    "MKT": "Market",
+    "MLSTN": "Milestone",
+    "MM": "Materials Management",
+    "MNT": "Maintenance",
+    "MOD": "Model",
+    "MSG": "Message",
+    "MSMT": "Measurement",
+    "MTRL": "Material",
+    "NEGTTN": "Negotiation",
+    "NGN": "Negotiation",
+    "NM": "Name",
+    "NOTIF": "Notification",
+    "NOTI": "Notification",
+    "NR": "Number",
+    "NUM": "Number",
+    "OA": "Output Agent",
+    "OBJ": "Object",
+    "OBJT": "Object",
+    "OP": "Operation",
+    "OPR": "Operator",
+    "ORD": "Order",
+    "ORG": "Organization",
+    "ORGL": "Organizational",
+    "OUTBND": "Outbound",
+    "OVW": "Overview",
+    "PARAM": "Parameter",
+    "PARTICPTN": "Participation",
+    "PAYMT": "Payment",
+    "PAYTTRM": "Payment Term",
+    "PCE": "Private Cloud Edition",
+    "PD": "Period",
+    "PHYS": "Physical",
+    "PKG": "Package",
+    "PLN": "Plan",
+    "PLNG": "Planning",
+    "PLNT": "Plant",
+    "PLNTGT": "Plan Target",
+    "PM": "Plant Maintenance",
+    "PO": "Purchase Order",
+    "POS": "Position",
+    "POSTG": "Posting",
+    "PP": "Production Planning",
+    "PRCG": "Pricing",
+    "PRCSNG": "Processing",
+    "PRD": "Period",
+    "PRDN": "Production",
+    "PRDNORD": "Production Order",
+    "PRFT": "Profit",
+    "PRJCT": "Project",
+    "PRMRY": "Primary",
+    "PROC": "Process",
+    "PROD": "Product",
+    "PRODFPRNT": "Product Footprint",
+    "PRPSD": "Proposed",
+    "PRTN": "Partner",
+    "PUB": "Public",
+    "PUBD": "Published",
+    "PUR": "Purchasing",
+    "PURCH": "Purchase",
+    "QTN": "Quotation",
+    "QTAN": "Quotation",
+    "QTY": "Quantity",
+    "QUAL": "Quality",
+    "RAP": "RESTful ABAP Programming",
+    "RCPT": "Receipt",
+    "RCV": "Receive",
+    "REF": "Reference",
+    "REG": "Registration",
+    "REL": "Release",
+    "RELSHP": "Relationship",
+    "REP": "Report",
+    "REPTN": "Repetition",
+    "REQ": "Request",
+    "REQSTN": "Requisition",
+    "RESCHD": "Reschedule",
+    "RSLTN": "Resolution",
+    "RSN": "Reason",
+    "RSVTN": "Reservation",
+    "RTNG": "Rating",
+    "RVNU": "Revenue",
+    "RVSN": "Revision",
+    "SCEN": "Scenario",
+    "SCHED": "Schedule",
+    "SCHEDLN": "Schedule Line",
+    "SCM": "Supply Chain Management",
+    "SD": "Sales and Distribution",
+    "SGM": "Stock and Goods Movement",
+    "SHFT": "Shift",
+    "SHIPG": "Shipping",
+    "SL": "Supplier List",
+    "SMLTN": "Simulation",
+    "SN": "Serial Number",
+    "SP": "Sourcing Project",
+    "SPCFD": "Specified",
+    "SPL": "Supplier",
+    "SPQ": "Sourcing Project Quotation",
+    "SQ": "Source of Supply Quota",
+    "SRC": "Source",
+    "SRCG": "Sourcing",
+    "SRCE": "Source",
+    "SRVC": "Service",
+    "SSL": "Sourcing Supplier List",
+    "STD": "Standard",
+    "STK": "Stock",
+    "STS": "Status",
+    "SUBN": "Submission",
+    "SUBSCRPN": "Subscription",
+    "SUPLR": "Supplier",
+    "SUPLST": "Supplier List",
+    "SUPPR": "Supplier",
+    "SVC": "Service",
+    "SVO": "Service Order",
+    "SYS": "System",
+    "TADIR": "Transport Directory",
+    "TGT": "Target",
+    "TGTPRC": "Target Price",
+    "TP": "Transactional Processing",
+    "TRANS": "Transaction",
+    "TRM": "Treasury and Risk Management",
+    "TXT": "Text",
+    "TYP": "Type",
+    "UOM": "Unit of Measure",
+    "UPDT": "Update",
+    "USR": "User",
+    "UT": "Unit Test",
+    "VAL": "Value",
+    "VALDTY": "Validity",
+    "VAR": "Variant",
+    "VDM": "Virtual Data Model",
+    "VER": "Version",
+    "VM": "Vendor Master",
+    "VLTLTY": "Volatility",
+    "VNDR": "Vendor",
+    "WBS": "Work Breakdown Structure",
+    "WH": "Warehouse",
+    "WHSE": "Warehouse",
+    "WIP": "Work in Progress",
+    "WOC": "Work Order Confirmation",
+    "WRH": "Warehouse",
+    "XCO": "Extension Components"
+  },
+  "word_to_abbreviations": {
+    "account": [
+      "ACCNT",
+      "ACCT"
+    ],
+    "accounting": [
+      "ACCTG"
+    ],
+    "activation": [
+      "ACTVTN"
+    ],
+    "actual": [
+      "ACTL"
+    ],
+    "additional": [
+      "ADDTL"
+    ],
+    "address": [
+      "ADDR"
+    ],
+    "administration": [
+      "ADM"
+    ],
+    "agreement": [
+      "AGRMNT",
+      "AGRMT"
+    ],
+    "allocation": [
+      "ALLOC"
+    ],
+    "allowed": [
+      "ALLWD"
+    ],
+    "amount": [
+      "AMNT"
+    ],
+    "analytics": [
+      "ANA"
+    ],
+    "application": [
+      "APP"
+    ],
+    "appointment": [
+      "APPT"
+    ],
+    "approval": [
+      "APPRVL"
+    ],
+    "approved": [
+      "APPRVD"
+    ],
+    "asset": [
+      "ASST"
+    ],
+    "assignment": [
+      "ASSGMT",
+      "ASSGN"
+    ],
+    "association": [
+      "ASSOC"
+    ],
+    "authorization": [
+      "AUTH",
+      "AUTHRZTN"
+    ],
+    "availability": [
+      "AVAIL",
+      "AVLBLTY"
+    ],
+    "award": [
+      "AWD"
+    ],
+    "awarding": [
+      "AWDG"
+    ],
+    "bank": [
+      "BNK"
+    ],
+    "basic": [
+      "BSC"
+    ],
+    "billing": [
+      "BIL",
+      "BILLG",
+      "BLR"
+    ],
+    "block": [
+      "BLK"
+    ],
+    "blocking": [
+      "BLKG"
+    ],
+    "business": [
+      "BUS"
+    ],
+    "calculation": [
+      "CALC"
+    ],
+    "calendar": [
+      "CAL"
+    ],
+    "cancellation": [
+      "CANCLN",
+      "CANCLTN"
+    ],
+    "category": [
+      "CAT"
+    ],
+    "change": [
+      "CHG"
+    ],
+    "charge": [
+      "CHRG"
+    ],
+    "check": [
+      "CHK",
+      "CK"
+    ],
+    "class": [
+      "CL"
+    ],
+    "classification": [
+      "CLASSFCTN"
+    ],
+    "collection": [
+      "COLL"
+    ],
+    "communication": [
+      "COMM"
+    ],
+    "company": [
+      "CMPNY"
+    ],
+    "component": [
+      "COMP"
+    ],
+    "condition": [
+      "CNDN",
+      "CNDTN"
+    ],
+    "configuration": [
+      "CFG",
+      "CONF"
+    ],
+    "confirmation": [
+      "CFMN",
+      "CNFMTN"
+    ],
+    "consolidation": [
+      "CNSLDTN"
+    ],
+    "control": [
+      "CNTL",
+      "CTRL"
+    ],
+    "controlling": [
+      "CO"
+    ],
+    "correction": [
+      "CORR"
+    ],
+    "country": [
+      "CNTRY"
+    ],
+    "credit": [
+      "CR"
+    ],
+    "currency": [
+      "CRRNCY"
+    ],
+    "customer": [
+      "CSTMR",
+      "CUST"
+    ],
+    "cycle": [
+      "CYC"
+    ],
+    "database": [
+      "DB"
+    ],
+    "decision": [
+      "DCSN"
+    ],
+    "definition": [
+      "DEF"
+    ],
+    "delivery": [
+      "DEL",
+      "DELIV"
+    ],
+    "demand": [
+      "DMND"
+    ],
+    "dependency": [
+      "DPNDCY"
+    ],
+    "description": [
+      "DSCR"
+    ],
+    "detail": [
+      "DET",
+      "DTL"
+    ],
+    "details": [
+      "DETS"
+    ],
+    "discount": [
+      "DISC"
+    ],
+    "distribution": [
+      "DISTR"
+    ],
+    "document": [
+      "DOC"
+    ],
+    "domain": [
+      "DOMA"
+    ],
+    "editable": [
+      "EDTBL"
+    ],
+    "effective": [
+      "EFF"
+    ],
+    "element": [
+      "ELMNT"
+    ],
+    "enhancement": [
+      "ENHNC"
+    ],
+    "entry": [
+      "ENTR"
+    ],
+    "evaluation": [
+      "EVAL"
+    ],
+    "event": [
+      "EVNT",
+      "EVT"
+    ],
+    "exclude": [
+      "EXCL"
+    ],
+    "expense": [
+      "EXP"
+    ],
+    "external": [
+      "EXT"
+    ],
+    "factory": [
+      "FAC"
+    ],
+    "field": [
+      "FLD"
+    ],
+    "final": [
+      "FINL"
+    ],
+    "finance": [
+      "FI",
+      "FIN"
+    ],
+    "fixed": [
+      "FIX"
+    ],
+    "fixing": [
+      "FIXG"
+    ],
+    "flag": [
+      "FLG"
+    ],
+    "flow": [
+      "FLW"
+    ],
+    "follow-up": [
+      "FUP"
+    ],
+    "footprint": [
+      "FPRNT"
+    ],
+    "forecast": [
+      "FCST"
+    ],
+    "forward": [
+      "FW",
+      "FWD"
+    ],
+    "function": [
+      "FUNC"
+    ],
+    "group": [
+      "GRP"
+    ],
+    "grouping": [
+      "GRPG"
+    ],
+    "header": [
+      "HDR"
+    ],
+    "hierarchy": [
+      "HIER"
+    ],
+    "inbound": [
+      "INBND"
+    ],
+    "incoterms": [
+      "INCTRMS"
+    ],
+    "instruction": [
+      "INSTR",
+      "INSTRN"
+    ],
+    "internal": [
+      "INT"
+    ],
+    "inventory": [
+      "INVTRY"
+    ],
+    "invoice": [
+      "INV"
+    ],
+    "invoicing": [
+      "INVCG"
+    ],
+    "item": [
+      "ITM"
+    ],
+    "journal": [
+      "JNL"
+    ],
+    "label": [
+      "LBL"
+    ],
+    "ledger": [
+      "LDGR",
+      "LGR"
+    ],
+    "level": [
+      "LVL"
+    ],
+    "lifecycle": [
+      "LFCYC"
+    ],
+    "link": [
+      "LNK"
+    ],
+    "location": [
+      "LOC"
+    ],
+    "lot": [
+      "LOT"
+    ],
+    "maintenance": [
+      "MAINT",
+      "MNT"
+    ],
+    "manufacturing": [
+      "MFG"
+    ],
+    "market": [
+      "MKT"
+    ],
+    "material": [
+      "MATL",
+      "MTRL"
+    ],
+    "measurement": [
+      "MSMT"
+    ],
+    "message": [
+      "MSG"
+    ],
+    "milestone": [
+      "MLSTN"
+    ],
+    "model": [
+      "MOD"
+    ],
+    "name": [
+      "NM"
+    ],
+    "negotiation": [
+      "NEGTTN",
+      "NGN"
+    ],
+    "notification": [
+      "NOTI",
+      "NOTIF"
+    ],
+    "number": [
+      "NR",
+      "NUM"
+    ],
+    "object": [
+      "OBJ",
+      "OBJT"
+    ],
+    "operation": [
+      "OP"
+    ],
+    "operator": [
+      "OPR"
+    ],
+    "order": [
+      "ORD"
+    ],
+    "organization": [
+      "ORG"
+    ],
+    "organizational": [
+      "ORGL"
+    ],
+    "outbound": [
+      "OUTBND"
+    ],
+    "overview": [
+      "OVW"
+    ],
+    "package": [
+      "PKG"
+    ],
+    "parameter": [
+      "PARAM"
+    ],
+    "participation": [
+      "PARTICPTN"
+    ],
+    "partner": [
+      "PRTN"
+    ],
+    "payment": [
+      "PAYMT"
+    ],
+    "period": [
+      "PD",
+      "PRD"
+    ],
+    "physical": [
+      "PHYS"
+    ],
+    "plan": [
+      "PLN"
+    ],
+    "planning": [
+      "PLNG"
+    ],
+    "plant": [
+      "PLNT"
+    ],
+    "position": [
+      "POS"
+    ],
+    "posting": [
+      "POSTG"
+    ],
+    "pricing": [
+      "PRCG"
+    ],
+    "primary": [
+      "PRMRY"
+    ],
+    "process": [
+      "PROC"
+    ],
+    "processing": [
+      "PRCSNG"
+    ],
+    "product": [
+      "PROD"
+    ],
+    "production": [
+      "PRDN"
+    ],
+    "profit": [
+      "PRFT"
+    ],
+    "project": [
+      "PRJCT"
+    ],
+    "proposed": [
+      "PRPSD"
+    ],
+    "public": [
+      "PUB"
+    ],
+    "published": [
+      "PUBD"
+    ],
+    "purchase": [
+      "PURCH"
+    ],
+    "purchasing": [
+      "PUR"
+    ],
+    "quality": [
+      "QUAL"
+    ],
+    "quantity": [
+      "QTY"
+    ],
+    "quotation": [
+      "QTAN",
+      "QTN"
+    ],
+    "rating": [
+      "RTNG"
+    ],
+    "reason": [
+      "RSN"
+    ],
+    "receipt": [
+      "RCPT"
+    ],
+    "receive": [
+      "RCV"
+    ],
+    "reference": [
+      "REF"
+    ],
+    "registration": [
+      "REG"
+    ],
+    "relationship": [
+      "RELSHP"
+    ],
+    "release": [
+      "REL"
+    ],
+    "repetition": [
+      "REPTN"
+    ],
+    "report": [
+      "REP"
+    ],
+    "request": [
+      "REQ"
+    ],
+    "requisition": [
+      "REQSTN"
+    ],
+    "reschedule": [
+      "RESCHD"
+    ],
+    "reservation": [
+      "RSVTN"
+    ],
+    "resolution": [
+      "RSLTN"
+    ],
+    "revenue": [
+      "RVNU"
+    ],
+    "revision": [
+      "RVSN"
+    ],
+    "scenario": [
+      "SCEN"
+    ],
+    "schedule": [
+      "SCHED"
+    ],
+    "service": [
+      "SRVC",
+      "SVC"
+    ],
+    "shift": [
+      "SHFT"
+    ],
+    "shipping": [
+      "SHIPG"
+    ],
+    "simulation": [
+      "SMLTN"
+    ],
+    "source": [
+      "SRC",
+      "SRCE"
+    ],
+    "sourcing": [
+      "SRCG"
+    ],
+    "specified": [
+      "SPCFD"
+    ],
+    "standard": [
+      "STD"
+    ],
+    "status": [
+      "STS"
+    ],
+    "stock": [
+      "STK"
+    ],
+    "submission": [
+      "SUBN"
+    ],
+    "subscription": [
+      "SUBSCRPN"
+    ],
+    "supplier": [
+      "SPL",
+      "SUPLR",
+      "SUPPR"
+    ],
+    "system": [
+      "SYS"
+    ],
+    "target": [
+      "TGT"
+    ],
+    "text": [
+      "TXT"
+    ],
+    "transaction": [
+      "TRANS"
+    ],
+    "type": [
+      "TYP"
+    ],
+    "update": [
+      "UPDT"
+    ],
+    "user": [
+      "USR"
+    ],
+    "validity": [
+      "VALDTY"
+    ],
+    "value": [
+      "VAL"
+    ],
+    "variant": [
+      "VAR"
+    ],
+    "vendor": [
+      "VNDR"
+    ],
+    "version": [
+      "VER"
+    ],
+    "volatility": [
+      "VLTLTY"
+    ],
+    "warehouse": [
+      "WH",
+      "WHSE",
+      "WRH"
+    ]
+  }
+}

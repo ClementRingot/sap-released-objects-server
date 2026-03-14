@@ -7,10 +7,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SAPObject, CleanCoreLevel, SystemType, DataStore, IndexedObject } from "../types.js";
 import { loadData, discoverPCEVersions } from "../services/data-loader.js";
 import { tokenizeQuery, scoreObject } from "../services/search.js";
-import { fetchObjectDescription } from "../services/sap-api.js";
+import { expandQueryTokens } from "../services/abbreviation-dictionary.js";
 import {
   OBJECT_TYPE_DESCRIPTIONS,
-  ODATA_ENTITY_MAP,
   CHARACTER_LIMIT,
   DEFAULT_LIMIT,
 } from "../constants.js";
@@ -156,6 +155,8 @@ export function registerTools(server: McpServer): void {
         `or discover alternatives when an object is not released.\n\n` +
         `SEARCH TIPS:\n` +
         `- Use separate words for business concepts: 'purchase order' not 'PURCHASEORDER'\n` +
+        `- SAP abbreviations are automatically resolved: 'billing document' also finds BILLGDOC*, BILDOC* objects\n` +
+        `- Compound abbreviations work too: 'purchase order' finds PO* objects, 'bill of material' finds BOM*\n` +
         `- Separate words trigger fuzzy matching on SAP abbreviations (e.g., 'physical inventory' finds both PHYSICALINVENTORY* and PHYSINVTRY* objects)\n` +
         `- Use exact SAP names only when you know the precise object name (e.g., 'I_PRODUCT', 'MARA')\n` +
         `- Combine with app_component filter for targeted results (e.g., query='inventory', app_component='MM-IM')\n` +
@@ -201,8 +202,9 @@ export function registerTools(server: McpServer): void {
       try {
         const store = await getStore(system_type, version, clean_core_level);
 
-        // --- Tokenize the query ---
+        // --- Tokenize the query and expand abbreviations ---
         const { tokens: queryTokens } = tokenizeQuery(query);
+        const expandedTokens = expandQueryTokens(queryTokens);
 
         // --- Get indexed candidates (optionally narrowed by type) ---
         let indexedCandidates: IndexedObject[];
@@ -256,7 +258,7 @@ export function registerTools(server: McpServer): void {
         // --- Score each candidate ---
         let scored: Array<{ indexed: IndexedObject; score: number }> = [];
         for (const idx of filtered) {
-          const score = scoreObject(idx, queryTokens, query);
+          const score = scoreObject(idx, queryTokens, query, expandedTokens);
           if (score > 0) {
             scored.push({ indexed: idx, score });
           }
@@ -1045,138 +1047,4 @@ export function registerTools(server: McpServer): void {
     }
   );
 
-  // =========================================================================
-  // TOOL 8: sap_get_object_description
-  // =========================================================================
-  server.registerTool(
-    "sap_get_object_description",
-    {
-      title: "Get SAP Object Description from api.sap.com",
-      description:
-        `Fetch detailed description, capabilities, extensibility info, and field list ` +
-        `for a SAP object from api.sap.com. Works for CDS views (DDLS) and behavior ` +
-        `definitions (BDEF). Returns capabilities (e.g., "Data Source for Search"), ` +
-        `key-user and developer extensibility flags, and when available the full ` +
-        `list of fields with data types.\n\n` +
-        `Note: This fetches data from the public SAP Business Accelerator Hub API. ` +
-        `Full field-level data may require authentication; if unavailable, basic ` +
-        `metadata (title, status, capabilities) is returned instead.\n\n` +
-        `Supported object types: ${Object.keys(ODATA_ENTITY_MAP).join(", ")}`,
-      inputSchema: {
-        object_type: z
-          .string()
-          .describe(
-            `TADIR object type. Supported: ${Object.keys(ODATA_ENTITY_MAP).join(", ")}. ` +
-            `Use 'DDLS' for CDS views, 'BDEF' for behavior definitions.`
-          ),
-        object_name: z
-          .string()
-          .describe(
-            "Object name (e.g., 'I_PRODUCT', 'I_PURCHASEORDERTP'). " +
-            "For private_cloud/on_premise, the PCE_ prefix is added automatically."
-          ),
-        system_type: z
-          .enum(["public_cloud", "btp", "private_cloud", "on_premise"])
-          .default("public_cloud")
-          .describe(
-            "SAP system type. Determines URL prefix: " +
-            "'public_cloud' / 'btp' use the name as-is. " +
-            "'private_cloud' / 'on_premise' add a PCE_ prefix. " +
-            "Default: public_cloud."
-          ),
-      },
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async ({ object_type, object_name, system_type }) => {
-      try {
-        const desc = await fetchObjectDescription(object_type, object_name, system_type);
-
-        const lines: string[] = [
-          `=== ${desc.technicalName || object_name.toUpperCase()} ===`,
-          "",
-        ];
-
-        if (desc.title) lines.push(`Title: ${desc.title}`);
-        if (desc.displayName) lines.push(`Display Name: ${desc.displayName}`);
-        if (desc.status) lines.push(`Status: ${desc.status}`);
-        if (desc.category) lines.push(`Category: ${desc.category}`);
-        if (desc.lineOfBusiness) lines.push(`Line of Business: ${desc.lineOfBusiness}`);
-        if (desc.applicationComponent) lines.push(`Application Component: ${desc.applicationComponent}`);
-
-        if (desc.description && desc.description !== desc.title) {
-          lines.push(`Description: ${desc.description}`);
-        }
-
-        // Capabilities
-        if (desc.capabilities.length > 0) {
-          lines.push("", "--- Capabilities ---");
-          for (const cap of desc.capabilities) {
-            lines.push(`  - ${cap}`);
-          }
-        }
-
-        // Extensibility
-        if (desc.keyUserExtensibility || desc.developerExtensibility) {
-          lines.push("", "--- Extensibility ---");
-          if (desc.keyUserExtensibility)
-            lines.push(`  Key User: ${desc.keyUserExtensibility}`);
-          if (desc.developerExtensibility)
-            lines.push(`  Developer: ${desc.developerExtensibility}`);
-        }
-
-        // Fields (only from full response)
-        if (desc.fields.length > 0) {
-          lines.push("", `--- Fields (${desc.fields.length}) ---`);
-          for (const field of desc.fields) {
-            let fieldLine = `  ${field.fieldname}`;
-            if (field.datatype) fieldLine += ` (${field.datatype}`;
-            if (field.fieldlength) fieldLine += `[${field.fieldlength}]`;
-            if (field.datatype) fieldLine += `)`;
-            if (field.description) fieldLine += ` — ${field.description}`;
-            if (field.successor) fieldLine += ` → successor: ${field.successor}`;
-            lines.push(fieldLine);
-          }
-        } else if (desc.source === "metadata") {
-          lines.push(
-            "",
-            "Note: Field-level details require authentication. " +
-            "Visit the URL below to see full field list."
-          );
-        }
-
-        // Documentation
-        if (desc.documentationLink) {
-          lines.push("", `Documentation: ${desc.documentationLink}`);
-        }
-
-        lines.push("", `View full details: ${desc.spaUrl}`);
-
-        if (desc.source === "metadata") {
-          lines.push(
-            "",
-            `[Data source: basic metadata — full details including fields available at the URL above]`
-          );
-        }
-
-        return {
-          content: [{ type: "text" as const, text: truncateIfNeeded(lines.join("\n")) }],
-        };
-      } catch (err) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching object description: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
-        };
-      }
-    }
-  );
 }

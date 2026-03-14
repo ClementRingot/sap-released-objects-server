@@ -142,18 +142,6 @@ List all available TADIR object types with counts per Clean Core level. No requi
 
 Statistical overview of the repository — total counts, breakdown by level, by object type, and by application component. No required parameters.
 
-### `sap_get_object_description`
-
-Fetch detailed description, capabilities, extensibility info, and field list for a CDS view or behavior definition from the [SAP Business Accelerator Hub](https://api.sap.com). For private cloud / on-premise systems, the `PCE_` prefix is added automatically.
-
-| Parameter | Type | Default | Description |
-| --- | --- | --- | --- |
-| `object_type` | string | *(required)* | `DDLS` (CDS view) or `BDEF` (behavior definition) |
-| `object_name` | string | *(required)* | Object name (e.g. `I_PRODUCT`, `I_PURCHASEORDERTP`) |
-| `system_type` | enum | `public_cloud` | `public_cloud`, `btp`, `private_cloud`, `on_premise` |
-
-> **Note:** Some endpoints on api.sap.com (BDEF, some DDLS) require authentication. The tool handles this automatically via OAuth2 (Authorization Code + PKCE): on first use, your browser opens the SAP login page; the token is then cached locally (`~/.sap-api-hub-token.json`) so subsequent calls don't require re-authentication.
-
 ## System Types
 
 | System Type | Description | Data Source | Levels | Versioned |
@@ -188,9 +176,6 @@ You:    "What's available for sending emails on BTP?"
 Agent:  → calls sap_search_objects(query="send email", system_type="btp")
         → Returns relevant BTP ABAP Environment APIs
 
-You:    "What fields does I_PRODUCT have?"
-Agent:  → calls sap_get_object_description(object_type="DDLS", object_name="I_PRODUCT")
-        → Returns title, capabilities, extensibility info, and 151 fields with data types
 ```
 
 ## Building Standalone Executables

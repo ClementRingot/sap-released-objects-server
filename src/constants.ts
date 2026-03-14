@@ -142,36 +142,3 @@ export const DEFAULT_LIMIT = 25;
 /** Character limit for text responses */
 export const CHARACTER_LIMIT = 50000;
 
-// ---------------------------------------------------------------------------
-// SAP Business Accelerator Hub - OData API
-// ---------------------------------------------------------------------------
-
-/** Base URL for the SAP API catalog OData endpoint */
-export const SAP_API_ODATA_BASE = "https://api.sap.com/odata/1.0/catalog.svc";
-
-/** Maps TADIR object types to OData entity sets and SPA paths */
-export const ODATA_ENTITY_MAP: Record<string, { entitySet: string; spaPath: string }> = {
-  DDLS: { entitySet: "CdsViewsContent.CdsViews", spaPath: "cdsviews" },
-  BDEF: { entitySet: "BOInterfaceContent.BOInterfaces", spaPath: "bointerface" },
-};
-
-/** Object types that require a PCE_ prefix for private_cloud / on_premise lookups */
-export const PCE_PREFIX_TYPES = new Set(["DDLS", "BDEF", "BADI"]);
-
-// ---------------------------------------------------------------------------
-// OAuth2 XSUAA configuration (public client, no secret)
-// ---------------------------------------------------------------------------
-
-/** XSUAA authorization endpoint */
-export const OAUTH_AUTH_ENDPOINT =
-  "https://sappubliccatalog.authentication.eu10.hana.ondemand.com/oauth/authorize";
-
-/** XSUAA token endpoint */
-export const OAUTH_TOKEN_ENDPOINT =
-  "https://sappubliccatalog.authentication.eu10.hana.ondemand.com/oauth/token";
-
-/** Public OAuth client ID (no client_secret needed) */
-export const OAUTH_CLIENT_ID = "sb-hubXsuaa-public!b630346";
-
-/** Timeout for browser-based login flow (ms) */
-export const OAUTH_LOGIN_TIMEOUT_MS = 2 * 60 * 1000;

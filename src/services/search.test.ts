@@ -11,6 +11,7 @@ import {
   commonPrefixLength,
   prefixSimilarity,
 } from "./search.js";
+import { expandQueryTokens } from "./abbreviation-dictionary.js";
 import type { SAPObject, IndexedObject } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -838,5 +839,109 @@ describe("multi-token coverage penalty", () => {
     const s2 = score("purchase order", idx);     // 1/2 match
     const s3 = score("purchase order item", idx); // 1/3 match
     expect(s3).toBeLessThan(s2); // more tokens unmatched → more penalty
+  });
+});
+
+// ===========================================================================
+// Abbreviation matching — scoring integration tests
+// ===========================================================================
+
+describe("abbreviation matching scoring", () => {
+  /** Score helper that includes abbreviation expansion */
+  function scoreWithAbbr(query: string, indexed: IndexedObject): number {
+    const { tokens } = tokenizeQuery(query);
+    const expanded = expandQueryTokens(tokens);
+    return scoreObject(indexed, tokens, query, expanded);
+  }
+
+  // -----------------------------------------------------------------------
+  // Single-token abbreviation matching
+  // -----------------------------------------------------------------------
+  describe("single-token abbreviation matching", () => {
+    it("'account' matches objects with ACCT in name", () => {
+      const idx = makeIndexed({ objectName: "I_ACCTGDOCITM" });
+      const s = scoreWithAbbr("account", idx);
+      // "account" → alternatives include "acct", "accnt"
+      // nameToken "acctgdocitm" contains "acct" (len 4 >= 3) → abbreviationMatch
+      expect(s).toBeGreaterThan(0);
+    });
+
+    it("'billing' matches objects with BILLG in name", () => {
+      const idx = makeIndexed({ objectName: "CL_BILLG_PROCESSOR" });
+      const s = scoreWithAbbr("billing", idx);
+      expect(s).toBeGreaterThan(0);
+    });
+
+    it("'supplier' matches objects with SUPLR in name", () => {
+      const idx = makeIndexed({ objectName: "I_SUPLRITM" });
+      const s = scoreWithAbbr("supplier", idx);
+      expect(s).toBeGreaterThan(0);
+    });
+
+    it("'material' matches objects with MATL in name", () => {
+      const idx = makeIndexed({ objectName: "I_MATLGRP" });
+      const s = scoreWithAbbr("material", idx);
+      expect(s).toBeGreaterThan(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Direct match should score higher than abbreviation match
+  // -----------------------------------------------------------------------
+  describe("direct match > abbreviation match", () => {
+    it("CL_BILLING_SERVICE scores higher than CL_BILLG_SERVICE for 'billing'", () => {
+      const idxDirect = makeIndexed({ objectName: "CL_BILLING_SERVICE" });
+      const idxAbbr = makeIndexed({ objectName: "CL_BILLG_SERVICE" });
+      const sDirect = scoreWithAbbr("billing", idxDirect);
+      const sAbbr = scoreWithAbbr("billing", idxAbbr);
+      expect(sDirect).toBeGreaterThan(sAbbr);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Backward compatibility: scoreObject without expandedTokens
+  // -----------------------------------------------------------------------
+  describe("backward compatibility", () => {
+    it("scoreObject without expandedTokens gives identical scores to before", () => {
+      const idx = makeIndexed({ objectName: "I_PURCHASEORDERITEM" });
+      const { tokens } = tokenizeQuery("purchase order");
+      const scoreWithout = scoreObject(idx, tokens, "purchase order");
+      const scoreWith = scoreObject(idx, tokens, "purchase order", undefined);
+      expect(scoreWithout).toBe(scoreWith);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Compound abbreviation matching
+  // -----------------------------------------------------------------------
+  describe("compound abbreviation matching", () => {
+    it("'purchase order' matches objects with PO prefix via compound abbreviation", () => {
+      const idx = makeIndexed({ objectName: "I_POITEM" });
+      const s = scoreWithAbbr("purchase order", idx);
+      // "purchase order" → compound abbreviation "po"
+      // nameToken "poitem".startsWith("po") → compoundAbbreviation = 18
+      expect(s).toBeGreaterThan(0);
+    });
+
+    it("compound abbreviation scores less than compound prefix (full words)", () => {
+      const idxFull = makeIndexed({ objectName: "I_PURCHASEORDERITEM" });
+      const idxAbbr = makeIndexed({ objectName: "I_POITEM" });
+      const sFull = scoreWithAbbr("purchase order", idxFull);
+      const sAbbr = scoreWithAbbr("purchase order", idxAbbr);
+      expect(sFull).toBeGreaterThan(sAbbr);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Cross-alternative compound
+  // -----------------------------------------------------------------------
+  describe("cross-alternative compound", () => {
+    it("'billing document' matches objects with BILLGDOC via cross-alternative", () => {
+      const idx = makeIndexed({ objectName: "I_BILLGDOCITM" });
+      const s = scoreWithAbbr("billing document", idx);
+      // "billing" → alt "billg", "document" → alt "doc"
+      // cross-alt: "billg" + "doc" = "billgdoc", nameToken "billgdocitm".startsWith("billgdoc") → yes
+      expect(s).toBeGreaterThan(0);
+    });
   });
 });

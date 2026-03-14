@@ -3,6 +3,8 @@
 // ============================================================================
 
 import type { SAPObject, IndexedObject } from "../types.js";
+import type { ExpandedToken } from "./abbreviation-dictionary.js";
+import { findCompoundAbbreviation } from "./abbreviation-dictionary.js";
 
 // Known technical prefixes to strip from SAP object names
 const TECHNICAL_PREFIXES = new Set([
@@ -188,21 +190,24 @@ export function prefixSimilarity(a: string, b: string): number {
 /**
  * Score an indexed object against the parsed query.
  *
- * score = exactMatch          × 1000  (full objectName === query)
- *       + tokenMatches        × 10    (query token fully matches a name token)
- *       + partialTokenMatches × 3     (query token ⊂ name token, or name token ⊂ query token if len ≥ 4)
- *       + prefixMatches       × 2     (query token shares a significant prefix with a name token)
- *       + componentMatch      × 5     (query token matches an applicationComponent segment)
- *       + nameContains        × 8     (raw query is a substring of objectName)
- *       + namePrefix          × 20    (objectName starts with the raw query — very strong signal)
- *       + compoundPrefix      × 25    (joined query tokens form a prefix of a name token)
- *       + compoundContains    × 15    (all query tokens found inside one name token, any order)
- *       + compoundPrefixFuzzy × 12    (concatenated prefixes of query tokens match start of a name token)
+ * score = exactMatch            × 1000  (full objectName === query)
+ *       + tokenMatches          × 10    (query token fully matches a name token)
+ *       + abbreviationMatches   × 7     (query token matches via abbreviation dictionary)
+ *       + partialTokenMatches   × 3     (query token ⊂ name token, or name token ⊂ query token if len ≥ 4)
+ *       + prefixMatches         × 2     (query token shares a significant prefix with a name token)
+ *       + componentMatch        × 5     (query token matches an applicationComponent segment)
+ *       + nameContains          × 8     (raw query is a substring of objectName)
+ *       + namePrefix            × 20    (objectName starts with the raw query — very strong signal)
+ *       + compoundPrefix        × 25    (joined query tokens form a prefix of a name token)
+ *       + compoundAbbreviation  × 18    (compound phrase ↔ abbreviation matches a name token)
+ *       + compoundContains      × 15    (all query tokens found inside one name token, any order)
+ *       + compoundPrefixFuzzy   × 12    (concatenated prefixes of query tokens match start of a name token)
  */
 export function scoreObject(
   indexed: IndexedObject,
   queryTokens: string[],
   rawQuery: string,
+  expandedTokens?: ExpandedToken[],
 ): number {
   const { object, nameTokens, componentTokens } = indexed;
   const nameUpper = object.objectName.toUpperCase();
@@ -213,13 +218,16 @@ export function scoreObject(
 
   // 2. Token-level matching
   let tokenMatches = 0;
+  let abbreviationMatches = 0;
   let partialTokenMatches = 0;
   let prefixMatches = 0;
   let componentMatch = 0;
   let matchedQueryTokens = 0;
 
-  for (const qt of queryTokens) {
+  for (let qi = 0; qi < queryTokens.length; qi++) {
+    const qt = queryTokens[qi];
     let fullMatch = false;
+    let abbrMatch = false;
     let partialMatch = false;
     let prefixMatch = false;
     let anyMatch = false;
@@ -241,8 +249,36 @@ export function scoreObject(
       }
     }
 
+    // Abbreviation matching: if no fullMatch and we have expanded tokens
+    if (!fullMatch && expandedTokens && expandedTokens[qi]) {
+      const alts = expandedTokens[qi].alternatives;
+      if (alts.size > 0) {
+        for (const alt of alts) {
+          for (const nt of nameTokens) {
+            if (nt === alt) {
+              // Exact match via abbreviation
+              abbrMatch = true;
+              anyMatch = true;
+              break;
+            } else if (nt.includes(alt) && alt.length >= 3) {
+              // Abbreviation contained in a concatenated name token
+              abbrMatch = true;
+              anyMatch = true;
+            } else if (alt.includes(nt) && nt.length >= 4) {
+              // Name token contained in the alternative
+              abbrMatch = true;
+              anyMatch = true;
+            }
+          }
+          if (abbrMatch) break;
+        }
+      }
+    }
+
     if (fullMatch) {
       tokenMatches++;
+    } else if (abbrMatch) {
+      abbreviationMatches++;
     } else if (partialMatch) {
       partialTokenMatches++;
     } else if (prefixMatch) {
@@ -271,6 +307,7 @@ export function scoreObject(
   let compoundPrefix = 0;
   let compoundContains = 0;
   let compoundPrefixFuzzy = 0;
+  let compoundAbbreviation = 0;
 
   if (queryTokens.length > 1) {
     const joinedQuery = queryTokens.join("");
@@ -305,11 +342,48 @@ export function scoreObject(
         }
       }
     }
+
+    // 5b. Compound abbreviation matching (requires expanded tokens)
+    if (!compoundPrefix && !compoundContains && expandedTokens) {
+      // Check if query tokens form a known compound phrase → abbreviation
+      const compound = findCompoundAbbreviation(queryTokens, 0);
+      if (compound) {
+        for (const abbr of compound.abbreviations) {
+          for (const nt of nameTokens) {
+            if (nt === abbr || nt.startsWith(abbr)) {
+              compoundAbbreviation = 1;
+              break;
+            }
+          }
+          if (compoundAbbreviation) break;
+        }
+      }
+
+      // Cross-alternative compound: combine alternatives of first 2 tokens
+      if (!compoundAbbreviation && expandedTokens.length >= 2) {
+        const alts0 = [expandedTokens[0].original, ...expandedTokens[0].alternatives];
+        const alts1 = [expandedTokens[1].original, ...expandedTokens[1].alternatives];
+
+        outerAbbr:
+        for (const a0 of alts0) {
+          for (const a1 of alts1) {
+            const combined = a0 + a1;
+            for (const nt of nameTokens) {
+              if (nt.startsWith(combined)) {
+                compoundAbbreviation = 1;
+                break outerAbbr;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   // 6. Compound matches imply token coverage — but CORRECTLY:
   //    - compoundPrefix/compoundContains use ALL queryTokens → full coverage
   //    - compoundPrefixFuzzy only uses tokens[0] and tokens[1] → credit only 2
+  //    - compoundAbbreviation uses tokens[0] and tokens[1] → credit only 2
   //    - nameContains/namePrefix imply the raw query appears → full coverage
   //
   //    BUG FIX: Previously compoundPrefixFuzzy forced matchedQueryTokens = queryTokens.length
@@ -317,7 +391,7 @@ export function scoreObject(
   //    even though "banana" matched nothing.
   if (nameContains || namePrefix || compoundPrefix || compoundContains) {
     matchedQueryTokens = queryTokens.length;
-  } else if (compoundPrefixFuzzy) {
+  } else if (compoundPrefixFuzzy || compoundAbbreviation) {
     matchedQueryTokens = Math.max(matchedQueryTokens, 2);
   }
 
@@ -325,12 +399,14 @@ export function scoreObject(
   let rawScore =
     exactMatch * 1000 +
     tokenMatches * 10 +
+    abbreviationMatches * 7 +
     partialTokenMatches * 3 +
     prefixMatches * 2 +
     componentMatch * 5 +
     nameContains * 8 +
     namePrefix * 20 +
     compoundPrefix * 25 +
+    compoundAbbreviation * 18 +
     compoundContains * 15 +
     compoundPrefixFuzzy * 12;
 
