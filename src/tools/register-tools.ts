@@ -160,6 +160,7 @@ export function registerTools(server: McpServer): void {
         `- Separate words trigger fuzzy matching on SAP abbreviations (e.g., 'physical inventory' finds both PHYSICALINVENTORY* and PHYSINVTRY* objects)\n` +
         `- Use exact SAP names only when you know the precise object name (e.g., 'I_PRODUCT', 'MARA')\n` +
         `- Combine with app_component filter for targeted results (e.g., query='inventory', app_component='MM-IM')\n` +
+        `- Prefer singular forms: 'handling unit' not 'handling units' (plural 's' can reduce match accuracy)\n` +
         `- Keep queries to 2-3 words maximum; use filters instead of adding more words\n\n` +
         `System types:\n` +
         `- public_cloud (S/4HANA Cloud Public Edition): Only Level A Released APIs\n` +

@@ -792,7 +792,7 @@ describe("compound prefix fuzzy matching", () => {
 // Multi-token coverage penalty
 // ===========================================================================
 
-describe("multi-token coverage penalty", () => {
+describe("multi-token coverage proportion", () => {
   it("does not penalize when all query tokens match", () => {
     const idx = makeIndexed({ objectName: "I_PURCHASEORDERITEM" });
     const s = score("purchase order", idx);
@@ -806,6 +806,8 @@ describe("multi-token coverage penalty", () => {
     const penalized = score("purchase order", idx); // "purchase" doesn't match
     // "order" full token match (10) + nameContains "ORDER" in "CL_ORDER_HELPER" (8) = 18
     expect(fullScore).toBe(18);
+    // penalized = round(10 × 0.5) = 5
+    expect(penalized).toBe(5);
     expect(penalized).toBeLessThan(fullScore);
   });
 
@@ -831,14 +833,32 @@ describe("multi-token coverage penalty", () => {
 
     // 3-token with irrelevant third word: fuzzy credits 2, "banana" = 0 → coverage 2/3
     const s3 = score("purchase order banana", idx);
+    // round(12 × 2/3) = 8
+    expect(s3).toBe(8);
     expect(s3).toBeLessThan(s2);
   });
 
   it("penalizes harder with 3-token query and 1 match", () => {
     const idx = makeIndexed({ objectName: "CL_ORDER_HELPER" });
-    const s2 = score("purchase order", idx);     // 1/2 match
-    const s3 = score("purchase order item", idx); // 1/3 match
+    const s2 = score("purchase order", idx);     // 1/2 match → round(10 × 0.5) = 5
+    const s3 = score("purchase order item", idx); // 1/3 match → round(10 × 0.33) = 3
+    expect(s2).toBe(5);
+    expect(s3).toBe(3);
     expect(s3).toBeLessThan(s2); // more tokens unmatched → more penalty
+  });
+
+  it("'handling unit' scores much higher than 'handling unit banana'", () => {
+    const idx = makeIndexed({ objectName: "I_HANDLINGUNITHEADER" });
+    const s2 = score("handling unit", idx);   // 2/2 match → 31 (compoundPrefix, no penalty)
+    const s3 = score("handling unit banana", idx);
+    // "banana" prevents compoundPrefix (all 3 joined ≠ prefix), falls back to
+    // compoundPrefixFuzzy (12) + 2 partial matches (6) = 18 raw
+    // coverage 2/3 → round(18 × 2/3) = 12
+    expect(s2).toBe(31);
+    expect(s3).toBe(12);
+    // Significant drop: the unmatched token both reduces the compound bonus
+    // AND applies the proportional coverage penalty
+    expect(s3).toBeLessThan(s2 * 2 / 3);
   });
 });
 

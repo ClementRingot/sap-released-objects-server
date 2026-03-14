@@ -410,16 +410,17 @@ export function scoreObject(
     compoundContains * 15 +
     compoundPrefixFuzzy * 12;
 
-  // 8. Multi-token coverage penalty:
-  //    When a query has 2+ tokens, penalize objects that only match a subset.
-  //    Formula: score × (0.3 + 0.7 × coverage)
+  // 8. Multi-token coverage proportion:
+  //    When a query has 2+ tokens, scale the score proportionally to the
+  //    ratio of matched query tokens vs total query tokens.
+  //    Formula: score × (matchedQueryTokens / queryTokens.length)
   //    - coverage 1.0 (all tokens) → ×1.0 (no penalty)
-  //    - coverage 0.5 (1 of 2)    → ×0.65 → score 10 becomes 6
-  //    - coverage 0.33 (1 of 3)   → ×0.53 → score 10 becomes 5
-  //    - coverage 0.67 (2 of 3)   → ×0.77 → score 31 becomes 24
+  //    - coverage 0.5 (1 of 2)    → ×0.50 → score 10 becomes 5
+  //    - coverage 0.33 (1 of 3)   → ×0.33 → score 10 becomes 3
+  //    - coverage 0.67 (2 of 3)   → ×0.67 → score 31 becomes 21
   if (queryTokens.length >= 2 && matchedQueryTokens < queryTokens.length) {
     const coverage = matchedQueryTokens / queryTokens.length;
-    rawScore = Math.round(rawScore * (0.3 + 0.7 * coverage));
+    rawScore = Math.round(rawScore * coverage);
   }
 
   return rawScore;
