@@ -60,6 +60,7 @@ Then add to your MCP client config:
 - **Filter by Clean Core Level** (A / B / C / D) — the new model replacing the 3-tier system since August 2025
 - **Find successors** for deprecated or non-released objects
 - **Clean Core compliance check** for a list of objects (with compliance rate)
+- **Object descriptions from api.sap.com** — capabilities, extensibility flags, and field lists for CDS views and BDEFs
 - **Statistics** — counts by level, type, and application component
 - **Smart search** — multi-token scoring with relevance ranking (e.g. `"purchase order"` finds `I_PURCHASEORDER`)
 - **Multi-system support** — S/4HANA Cloud Public, BTP ABAP Environment, Private Cloud, On-Premise
@@ -68,7 +69,7 @@ Then add to your MCP client config:
 
 ## How It Works
 
-The server fetches JSON files from the official [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) at runtime and caches them **in memory for 1 hour**. No SAP system connection is required — all data comes from SAP's public GitHub repository.
+The server fetches JSON files from the official [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) at runtime and caches them **in memory for 24 hours**. No SAP system connection is required — all data comes from SAP's public GitHub repository.
 
 ## Clean Core Level Concept
 
@@ -141,6 +142,18 @@ List all available TADIR object types with counts per Clean Core level. No requi
 
 Statistical overview of the repository — total counts, breakdown by level, by object type, and by application component. No required parameters.
 
+### `sap_get_object_description`
+
+Fetch detailed description, capabilities, extensibility info, and field list for a CDS view or behavior definition from the [SAP Business Accelerator Hub](https://api.sap.com). For private cloud / on-premise systems, the `PCE_` prefix is added automatically.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `object_type` | string | *(required)* | `DDLS` (CDS view) or `BDEF` (behavior definition) |
+| `object_name` | string | *(required)* | Object name (e.g. `I_PRODUCT`, `I_PURCHASEORDERTP`) |
+| `system_type` | enum | `public_cloud` | `public_cloud`, `btp`, `private_cloud`, `on_premise` |
+
+> **Note:** Full field-level data may require authentication on api.sap.com. When unavailable, the tool returns basic metadata (title, status, capabilities) and a link to the full details.
+
 ## System Types
 
 | System Type | Description | Data Source | Levels | Versioned |
@@ -174,6 +187,10 @@ Agent:  → calls sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI
 You:    "What's available for sending emails on BTP?"
 Agent:  → calls sap_search_objects(query="send email", system_type="btp")
         → Returns relevant BTP ABAP Environment APIs
+
+You:    "What fields does I_PRODUCT have?"
+Agent:  → calls sap_get_object_description(object_type="DDLS", object_name="I_PRODUCT")
+        → Returns title, capabilities, extensibility info, and 151 fields with data types
 ```
 
 ## Building Standalone Executables

@@ -151,6 +151,40 @@ export interface GitHubContentEntry {
 // Search/filter result types
 // ============================================================================
 
+// ============================================================================
+// SAP API Description types (from api.sap.com OData)
+// ============================================================================
+
+export interface SAPApiField {
+  fieldname: string;
+  description: string;
+  datatype: string;
+  fieldlength: string;
+  successor: string;
+}
+
+export interface SAPApiDescription {
+  technicalName: string;
+  displayName: string;
+  title: string;
+  description: string;
+  status: string;
+  lineOfBusiness: string;
+  applicationComponent: string;
+  category: string;
+  capabilities: string[];
+  keyUserExtensibility: string;
+  developerExtensibility: string;
+  fields: SAPApiField[];
+  documentationLink: string;
+  spaUrl: string;
+  source: "full" | "metadata";
+}
+
+// ============================================================================
+// Search/filter result types
+// ============================================================================
+
 export interface SearchResult {
   total: number;
   count: number;

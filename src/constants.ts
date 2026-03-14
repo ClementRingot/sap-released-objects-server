@@ -130,8 +130,8 @@ export const OBJECT_TYPE_DESCRIPTIONS: Record<string, string> = {
 // Server configuration
 // ---------------------------------------------------------------------------
 
-/** Cache TTL in milliseconds (1 hour) */
-export const CACHE_TTL_MS = 60 * 60 * 1000;
+/** Cache TTL in milliseconds (24 hours) */
+export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Maximum results per search query */
 export const MAX_RESULTS = 100;
@@ -141,3 +141,19 @@ export const DEFAULT_LIMIT = 25;
 
 /** Character limit for text responses */
 export const CHARACTER_LIMIT = 50000;
+
+// ---------------------------------------------------------------------------
+// SAP Business Accelerator Hub - OData API
+// ---------------------------------------------------------------------------
+
+/** Base URL for the SAP API catalog OData endpoint */
+export const SAP_API_ODATA_BASE = "https://api.sap.com/odata/1.0/catalog.svc";
+
+/** Maps TADIR object types to OData entity sets and SPA paths */
+export const ODATA_ENTITY_MAP: Record<string, { entitySet: string; spaPath: string }> = {
+  DDLS: { entitySet: "CdsViewsContent.CdsViews", spaPath: "cdsviews" },
+  BDEF: { entitySet: "BOInterfaceContent.BOInterfaces", spaPath: "bointerface" },
+};
+
+/** Object types that require a PCE_ prefix for private_cloud / on_premise lookups */
+export const PCE_PREFIX_TYPES = new Set(["DDLS", "BDEF", "BADI"]);
