@@ -2,8 +2,8 @@
   "_metadata": {
     "source": "github.com/SAP/abap-atc-cr-cv-s4hc (Cloudification Repository)",
     "description": "Dictionnaire des abréviations SAP extraites des noms d'objets du Cloudification Repository",
-    "total_abbreviations": 301,
-    "total_unique_words": 204,
+    "total_abbreviations": 303,
+    "total_unique_words": 205,
     "usage": "Utilisé par un algorithme pour générer toutes les combinaisons possibles d'abréviations pour un ensemble de mots"
   },
   "abbreviation_to_word": {
@@ -140,6 +140,8 @@
     "GRPG": "Grouping",
     "HDR": "Header",
     "HIER": "Hierarchy",
+    "HNDLG": "Handling",
+    "HNDLGUNIT": "Handling Unit",
     "HU": "Handling Unit",
     "IM": "Inventory Management",
     "INBND": "Inbound",
@@ -604,6 +606,9 @@
     ],
     "grouping": [
       "GRPG"
+    ],
+    "handling": [
+      "HNDLG"
     ],
     "header": [
       "HDR"
