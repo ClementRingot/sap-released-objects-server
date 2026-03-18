@@ -136,9 +136,22 @@ export function tokenizeComponent(component: string): string[] {
 export function tokenizeQuery(query: string): {
   tokens: string[];
   isExactMode: boolean;
+  mandatoryPrefix?: string;
 } {
   const trimmed = query.trim();
   const isExactMode = /^[A-Z0-9_/]+$/.test(trimmed) && trimmed.length >= 2;
+
+  // Detect technical prefix: if query starts with a known prefix followed by "_something"
+  // e.g., "BAPI_MATERIAL_GETLIST" → mandatoryPrefix = "BAPI_", scored only on ["material", "getlist"]
+  // e.g., "CL_ABAP_REGEX"         → mandatoryPrefix = "CL_",   scored only on ["abap", "regex"]
+  let mandatoryPrefix: string | undefined;
+  const prefixMatch = trimmed.match(/^([A-Za-z]+)_(.+)/);
+  if (prefixMatch) {
+    const candidate = prefixMatch[1].toUpperCase();
+    if (TECHNICAL_PREFIXES.has(candidate)) {
+      mandatoryPrefix = candidate + "_";
+    }
+  }
 
   const parts = trimmed.split(/[\s_/]+/).filter((p) => p.length > 0);
   const tokens: string[] = [];
@@ -152,12 +165,19 @@ export function tokenizeQuery(query: string): {
     }
   }
 
+  // Remove the prefix token from scoring — it becomes a mandatory filter instead
+  if (mandatoryPrefix) {
+    const prefixToken = mandatoryPrefix.slice(0, -1).toLowerCase(); // "BAPI_" → "bapi"
+    const idx = tokens.indexOf(prefixToken);
+    if (idx !== -1) tokens.splice(idx, 1);
+  }
+
   // Fallback: if all tokens were filtered out, use the whole query
   if (tokens.length === 0 && trimmed.length > 0) {
     tokens.push(trimmed.toLowerCase());
   }
 
-  return { tokens, isExactMode };
+  return { tokens, isExactMode, mandatoryPrefix };
 }
 
 // ---------------------------------------------------------------------------

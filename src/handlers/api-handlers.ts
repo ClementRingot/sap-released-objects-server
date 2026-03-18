@@ -230,7 +230,7 @@ export async function handleSearchObjects(params: {
 
   const store = await getStore(system_type, version, clean_core_level);
 
-  const { tokens: queryTokens } = tokenizeQuery(query);
+  const { tokens: queryTokens, mandatoryPrefix } = tokenizeQuery(query);
   const expandedTokens = expandQueryTokens(queryTokens);
 
   let indexedCandidates: IndexedObject[];
@@ -263,6 +263,10 @@ export async function handleSearchObjects(params: {
 
   if (state) {
     filtered = filtered.filter((idx) => idx.object.state === state);
+  }
+
+  if (mandatoryPrefix) {
+    filtered = filtered.filter((idx) => idx.object.objectName.toUpperCase().startsWith(mandatoryPrefix!));
   }
 
   let scored: Array<{ indexed: IndexedObject; score: number; coverage: number }> = [];

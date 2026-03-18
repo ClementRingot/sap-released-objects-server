@@ -166,9 +166,9 @@ describe("tokenizeQuery", () => {
   it("detects exact mode for full object name with underscores", () => {
     const result = tokenizeQuery("CL_BCS_SEND_REQUEST");
     expect(result.isExactMode).toBe(true);
-    // tokenizeQuery does NOT strip technical prefixes (unlike tokenizeSAPName)
-    // "CL" (2 chars) passes the length > 1 filter
-    expect(result.tokens).toEqual(["cl", "bcs", "send", "request"]);
+    // "CL" is a TECHNICAL_PREFIX → stripped from tokens, becomes mandatoryPrefix
+    expect(result.mandatoryPrefix).toBe("CL_");
+    expect(result.tokens).toEqual(["bcs", "send", "request"]);
   });
 
   it("is not exact mode for natural language query", () => {
