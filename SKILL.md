@@ -14,7 +14,7 @@ Data comes from SAP's public GitHub repository and is cached for 24 hours. No SA
 ## Base URL
 
 ```
-https://sap-released-objects-mcp-server-production.up.railway.app
+https://sap-released-objects-server-production.up.railway.app
 ```
 
 All endpoints return JSON. All parameters are passed as query string. All endpoints support CORS.
@@ -311,7 +311,7 @@ GET /api/versions
 
 Health check.
 
-**Response:** `{ "status": "ok", "server": "sap-released-objects-mcp-server" }`
+**Response:** `{ "status": "ok", "server": "sap-released-objects-server" }`
 
 ## Typical Use Cases
 

@@ -1,11 +1,11 @@
 {
-  "name": "sap-released-objects-mcp-server",
+  "name": "sap-released-objects-server",
   "version": "1.11.0",
-  "description": "MCP server for SAP Cloudification Repository - Search released objects, classic APIs, successors with Clean Core Level filtering (A/B/C/D)",
+  "description": "MCP server and REST API for SAP Cloudification Repository - Search released objects, classic APIs, successors with Clean Core Level filtering (A/B/C/D)",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "sap-released-objects-mcp-server": "dist/index.js"
+    "sap-released-objects-server": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -27,6 +27,7 @@
   },
   "keywords": [
     "mcp",
+    "rest-api",
     "sap",
     "abap",
     "clean-core",

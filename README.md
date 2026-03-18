@@ -1,29 +1,38 @@
-# SAP Released Objects MCP Server
+# SAP Released Objects Server
 
-[![CI](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/ci.yml)
-[![Release](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/release.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest)
+[![CI](https://github.com/ClementRingot/sap-released-objects-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-server/actions/workflows/ci.yml)
+[![Release](https://github.com/ClementRingot/sap-released-objects-server/actions/workflows/release.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-server/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An [MCP server](https://modelcontextprotocol.io/) and **REST API** that gives AI agents real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
+A server that gives AI agents real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
+
+It plugs directly into the [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) (the official source of truth) and exposes the data **two ways**:
+
+| Access mode | Protocol | Use case |
+| --- | --- | --- |
+| **MCP Server** | [Model Context Protocol](https://modelcontextprotocol.io/) on `POST /mcp` | AI agents with native MCP support (Claude Desktop, Claude Code, Cline, Cursor...) |
+| **REST API** | Simple `GET` endpoints on `/api/*` returning JSON | LLM skills, custom integrations, scripts, CI pipelines — anything that can call an HTTP endpoint |
+
+Both modes expose the **exact same capabilities** (search, details, successors, compliance check, statistics) and share the same business logic — no feature gap between MCP and REST.
 
 ## The Problem
 
 When you use an AI agent to write ABAP Cloud code, the agent has no idea which objects are released, deprecated, or forbidden. It will happily generate code using `MARA`, `CL_GUI_ALV_GRID`, or `BSEG` — all of which are **not released** in ABAP Cloud.
 
-This MCP server plugs directly into the [SAP Cloudification Repository](https://github.com/SAP/abap-atc-cr-cv-s4hc) (the official source of truth) and exposes it as tools your agent can call. Ask *"Is MARA available?"* and the agent instantly knows: **no — use `I_PRODUCT` instead.**
+This server solves this. Ask *"Is MARA available?"* and the agent instantly knows: **no — use `I_PRODUCT` instead.**
 
 ## Quick Start
 
-### Option 1: Remote server (zero install — recommended)
+### Option 1 — MCP Client (Claude Desktop, Claude Code, Cline...)
 
-A hosted instance is available. Just add this to your MCP client config (Claude Desktop, Claude Code, Cline…):
+Add this to your MCP client config:
 
 ```json
 {
   "mcpServers": {
     "sap-released-objects": {
       "type": "url",
-      "url": "https://sap-released-objects-mcp-server-production.up.railway.app/mcp"
+      "url": "https://sap-released-objects-server-production.up.railway.app/mcp"
     }
   }
 }
@@ -31,15 +40,32 @@ A hosted instance is available. Just add this to your MCP client config (Claude 
 
 Nothing to install, nothing to maintain — you're ready to go.
 
-### Option 2: Standalone executable (no Node.js required)
+### Option 2 — REST API (Skills, scripts, integrations)
 
-If you prefer running locally, download the executable for your platform:
+Call the hosted REST API directly. All endpoints are `GET`, return JSON, and support CORS.
+
+```bash
+# Search for purchase order objects
+curl "https://sap-released-objects-server-production.up.railway.app/api/search?query=purchase+order"
+
+# Get details for table MARA
+curl "https://sap-released-objects-server-production.up.railway.app/api/object?object_type=TABL&object_name=MARA"
+
+# Check Clean Core compliance
+curl "https://sap-released-objects-server-production.up.railway.app/api/compliance?object_names=MARA,BSEG,I_PRODUCT"
+```
+
+To use as an **LLM skill**, see [`SKILL.md`](./SKILL.md) — it contains the full API reference formatted for LLM consumption (endpoints, parameters, response examples, interpretation instructions).
+
+### Option 3 — Standalone executable (local, no Node.js)
+
+Download the executable for your platform:
 
 | Platform | Download |
 | --- | --- |
-| **Windows** | [`sap-released-objects-win.exe`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-win.exe) |
-| **Linux** | [`sap-released-objects-linux`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-linux) |
-| **macOS** | [`sap-released-objects-macos`](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest/download/sap-released-objects-macos) |
+| **Windows** | [`sap-released-objects-win.exe`](https://github.com/ClementRingot/sap-released-objects-server/releases/latest/download/sap-released-objects-win.exe) |
+| **Linux** | [`sap-released-objects-linux`](https://github.com/ClementRingot/sap-released-objects-server/releases/latest/download/sap-released-objects-linux) |
+| **macOS** | [`sap-released-objects-macos`](https://github.com/ClementRingot/sap-released-objects-server/releases/latest/download/sap-released-objects-macos) |
 
 Then add to your MCP client config:
 
@@ -60,13 +86,10 @@ Then add to your MCP client config:
 - **Filter by Clean Core Level** (A / B / C / D) — the new model replacing the 3-tier system since August 2025
 - **Find successors** for deprecated or non-released objects
 - **Clean Core compliance check** for a list of objects (with compliance rate)
-- **Object descriptions from api.sap.com** — capabilities, extensibility flags, and field lists for CDS views and BDEFs
 - **Statistics** — counts by level, type, and application component
 - **Smart search** — multi-token scoring with relevance ranking (e.g. `"purchase order"` finds `I_PURCHASEORDER`)
 - **Multi-system support** — S/4HANA Cloud Public, BTP ABAP Environment, Private Cloud, On-Premise
 - **Dynamic versioning** — PCE versions discovered automatically from the SAP repository
-- **Dual transport** — hosted remote server or local stdio executable
-- **REST API** — all tools also available as simple GET endpoints under `/api`
 
 ## How It Works
 
@@ -83,7 +106,9 @@ Since August 2025, SAP replaced the 3-tier model with the **Clean Core Level Con
 | **C** | Internal / unclassified objects | Uncatalogued objects | 🟡 Manageable risk |
 | **D** | noAPI (not recommended) | Objects marked `noAPI` | 🔴 High risk |
 
-## Available Tools
+## MCP Tools
+
+The following tools are exposed via the MCP protocol on `POST /mcp`:
 
 ### `sap_search_objects`
 
@@ -143,6 +168,28 @@ List all available TADIR object types with counts per Clean Core level. No requi
 
 Statistical overview of the repository — total counts, breakdown by level, by object type, and by application component. No required parameters.
 
+## REST API
+
+The same capabilities are available as simple `GET` endpoints under `/api`. All endpoints return JSON and support CORS.
+
+**Base URL:** `https://sap-released-objects-server-production.up.railway.app`
+
+| Endpoint | MCP Equivalent | Required Parameters |
+| --- | --- | --- |
+| `GET /api` | — | Auto-documentation: lists all endpoints |
+| `GET /api/search` | `sap_search_objects` | `query` |
+| `GET /api/object` | `sap_get_object_details` | `object_type`, `object_name` |
+| `GET /api/successor` | `sap_find_successor` | `object_name` |
+| `GET /api/compliance` | `sap_check_clean_core_compliance` | `object_names` |
+| `GET /api/types` | `sap_list_object_types` | — |
+| `GET /api/statistics` | `sap_get_statistics` | — |
+| `GET /api/versions` | `sap_list_versions` | — |
+| `GET /health` | — | Health check |
+
+All endpoints accept optional `system_type`, `clean_core_level`, and `version` query parameters (same defaults as MCP tools).
+
+For the **full REST API reference** (parameters, response formats, examples, LLM instructions), see [`SKILL.md`](./SKILL.md).
+
 ## System Types
 
 | System Type | Description | Data Source | Levels | Versioned |
@@ -176,43 +223,7 @@ Agent:  → calls sap_check_clean_core_compliance(object_names="BSEG,MARA,CL_GUI
 You:    "What's available for sending emails on BTP?"
 Agent:  → calls sap_search_objects(query="send email", system_type="btp")
         → Returns relevant BTP ABAP Environment APIs
-
 ```
-
-## REST API
-
-In addition to the MCP protocol, the hosted server exposes a **REST API** under `/api` for direct HTTP access. All endpoints are `GET` and return JSON. CORS is enabled.
-
-**Base URL:** `https://sap-released-objects-mcp-server-production.up.railway.app`
-
-| Endpoint | Description | Required Parameters |
-| --- | --- | --- |
-| `GET /api` | List all endpoints (auto-documentation) | — |
-| `GET /api/search` | Search objects with fuzzy matching | `query` |
-| `GET /api/object` | Get object details | `object_type`, `object_name` |
-| `GET /api/successor` | Find successor for deprecated object | `object_name` |
-| `GET /api/compliance` | Check Clean Core compliance | `object_names` |
-| `GET /api/types` | List object types with counts | — |
-| `GET /api/statistics` | Repository statistics | — |
-| `GET /api/versions` | List PCE versions | — |
-| `GET /health` | Health check | — |
-
-All endpoints accept optional `system_type`, `clean_core_level`, and `version` query parameters (same defaults as MCP tools).
-
-**Examples:**
-
-```bash
-# Search for purchase order objects
-curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/search?query=purchase+order&limit=5"
-
-# Get details for table MARA
-curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/object?object_type=TABL&object_name=MARA"
-
-# Check compliance of multiple objects
-curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/compliance?object_names=MARA,BSEG,I_PRODUCT"
-```
-
-For full API documentation (parameters, response formats, use cases), see [SKILL.md](./SKILL.md).
 
 ## Building Standalone Executables
 

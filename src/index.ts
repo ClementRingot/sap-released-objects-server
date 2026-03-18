@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // ============================================================================
-// SAP Released Objects MCP Server
+// SAP Released Objects Server
 // Main entry point — supports both stdio and HTTP transports
 // Exposes MCP protocol on /mcp and REST API on /api
 // ============================================================================
@@ -19,7 +19,7 @@ import { createApiRouter } from "./routes/api-routes.js";
 // ---------------------------------------------------------------------------
 
 const server = new McpServer({
-  name: "sap-released-objects-mcp-server",
+  name: "sap-released-objects-server",
   version: "1.0.0",
 });
 
@@ -47,7 +47,7 @@ async function runHTTP(): Promise<void> {
 
   // Health check endpoint
   app.get("/health", (_req, res) => {
-    res.json({ status: "ok", server: "sap-released-objects-mcp-server" });
+    res.json({ status: "ok", server: "sap-released-objects-server" });
   });
 
   // REST API endpoints
