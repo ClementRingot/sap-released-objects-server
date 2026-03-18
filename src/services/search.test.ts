@@ -47,7 +47,7 @@ function makeIndexed(
 /** Score helper — tokenize the query then score a single object */
 function score(query: string, indexed: IndexedObject): number {
   const { tokens } = tokenizeQuery(query);
-  return scoreObject(indexed, tokens, query);
+  return scoreObject(indexed, tokens, query).score;
 }
 
 // ===========================================================================
@@ -257,7 +257,7 @@ describe("scoreObject", () => {
       // nameTokens: ["order", "service"]
       // "purchaseorderitem".includes("order") → true, "order".length=5 ≥ 4 → partial
       const { tokens } = tokenizeQuery("purchaseorderitem");
-      const s = scoreObject(idx, tokens, "purchaseorderitem");
+      const s = scoreObject(idx, tokens, "purchaseorderitem").score;
       expect(s).toBeGreaterThan(0);
     });
 
@@ -335,7 +335,7 @@ describe("scoreObject", () => {
       const idx = makeIndexed({ objectName: "XCL_PRODUCT" });
       // "PRODUCT" is contained but not a prefix
       const { tokens } = tokenizeQuery("PRODUCT");
-      const s = scoreObject(idx, tokens, "PRODUCT");
+      const s = scoreObject(idx, tokens, "PRODUCT").score;
       // nameContains = 8, namePrefix = 0
       // Also "product" === "product" (full token match) = 10
       expect(s).toBe(10 + 8); // no prefix bonus
@@ -457,7 +457,7 @@ describe("search ranking", () => {
         const idx = makeIndexed(o);
         return {
           name: o.objectName,
-          score: scoreObject(idx, tokens, query),
+          score: scoreObject(idx, tokens, query).score,
         };
       })
       .filter((r) => r.score > 0)
@@ -721,7 +721,7 @@ describe("compound prefix fuzzy matching", () => {
         const idx = makeIndexed(o);
         return {
           name: o.objectName,
-          score: scoreObject(idx, tokens, query),
+          score: scoreObject(idx, tokens, query).score,
         };
       })
       .filter((r) => r.score > 0)
@@ -871,7 +871,7 @@ describe("abbreviation matching scoring", () => {
   function scoreWithAbbr(query: string, indexed: IndexedObject): number {
     const { tokens } = tokenizeQuery(query);
     const expanded = expandQueryTokens(tokens);
-    return scoreObject(indexed, tokens, query, expanded);
+    return scoreObject(indexed, tokens, query, expanded).score;
   }
 
   // -----------------------------------------------------------------------
@@ -925,8 +925,8 @@ describe("abbreviation matching scoring", () => {
     it("scoreObject without expandedTokens gives identical scores to before", () => {
       const idx = makeIndexed({ objectName: "I_PURCHASEORDERITEM" });
       const { tokens } = tokenizeQuery("purchase order");
-      const scoreWithout = scoreObject(idx, tokens, "purchase order");
-      const scoreWith = scoreObject(idx, tokens, "purchase order", undefined);
+      const scoreWithout = scoreObject(idx, tokens, "purchase order").score;
+      const scoreWith = scoreObject(idx, tokens, "purchase order", undefined).score;
       expect(scoreWithout).toBe(scoreWith);
     });
   });

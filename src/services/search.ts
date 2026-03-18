@@ -203,12 +203,19 @@ export function prefixSimilarity(a: string, b: string): number {
  *       + compoundContains      × 15    (all query tokens found inside one name token, any order)
  *       + compoundPrefixFuzzy   × 12    (concatenated prefixes of query tokens match start of a name token)
  */
+export interface ScoreResult {
+  /** Final score after coverage penalty (used for sorting/filtering) */
+  score: number;
+  /** Ratio of matched query tokens vs total (1.0 = all matched) */
+  coverage: number;
+}
+
 export function scoreObject(
   indexed: IndexedObject,
   queryTokens: string[],
   rawQuery: string,
   expandedTokens?: ExpandedToken[],
-): number {
+): ScoreResult {
   const { object, nameTokens, componentTokens } = indexed;
   const nameUpper = object.objectName.toUpperCase();
   const queryUpper = rawQuery.toUpperCase();
@@ -413,18 +420,15 @@ export function scoreObject(
     compoundContains * 15 +
     compoundPrefixFuzzy * 12;
 
-  // 8. Multi-token coverage proportion:
-  //    When a query has 2+ tokens, scale the score proportionally to the
-  //    ratio of matched query tokens vs total query tokens.
-  //    Formula: score × (matchedQueryTokens / queryTokens.length)
-  //    - coverage 1.0 (all tokens) → ×1.0 (no penalty)
-  //    - coverage 0.5 (1 of 2)    → ×0.50 → score 10 becomes 5
-  //    - coverage 0.33 (1 of 3)   → ×0.33 → score 10 becomes 3
-  //    - coverage 0.67 (2 of 3)   → ×0.67 → score 31 becomes 21
-  if (queryTokens.length >= 2 && matchedQueryTokens < queryTokens.length) {
-    const coverage = matchedQueryTokens / queryTokens.length;
+  // 8. Coverage ratio and penalty
+  const coverage =
+    queryTokens.length >= 2
+      ? matchedQueryTokens / queryTokens.length
+      : 1;
+
+  if (coverage < 1) {
     rawScore = Math.round(rawScore * coverage);
   }
 
-  return rawScore;
+  return { score: rawScore, coverage };
 }

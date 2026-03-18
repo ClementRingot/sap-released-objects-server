@@ -265,11 +265,11 @@ export async function handleSearchObjects(params: {
     filtered = filtered.filter((idx) => idx.object.state === state);
   }
 
-  let scored: Array<{ indexed: IndexedObject; score: number }> = [];
+  let scored: Array<{ indexed: IndexedObject; score: number; coverage: number }> = [];
   for (const idx of filtered) {
-    const score = scoreObject(idx, queryTokens, query, expandedTokens);
+    const { score, coverage } = scoreObject(idx, queryTokens, query, expandedTokens);
     if (score > 0) {
-      scored.push({ indexed: idx, score });
+      scored.push({ indexed: idx, score, coverage });
     }
   }
 
@@ -306,8 +306,12 @@ export async function handleSearchObjects(params: {
     };
   }
 
+  // Relevance = relative quality (score/maxScore) × coverage (matched tokens ratio).
+  // This ensures that unmatched query tokens visibly reduce relevance:
+  // "purchase order" (2/2 matched) → top relevance 100
+  // "purchase order banana" (2/3 matched) → top relevance ~67
   const maxScore = scored[0].score;
-  const objects: ScoredObject[] = paginated.map(({ indexed, score }) => ({
+  const objects: ScoredObject[] = paginated.map(({ indexed, score, coverage }) => ({
     objectType: indexed.object.objectType,
     objectName: indexed.object.objectName,
     state: indexed.object.state,
@@ -322,7 +326,7 @@ export async function handleSearchObjects(params: {
           conceptName: indexed.object.successor.conceptName,
         }
       : undefined,
-    relevance: Math.round((score / maxScore) * 100),
+    relevance: Math.round((score / maxScore) * 100 * coverage),
   }));
 
   return {
