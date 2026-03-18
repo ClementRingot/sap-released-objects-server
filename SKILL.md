@@ -2,7 +2,7 @@
 
 ## What this API does
 
-This API queries the **SAP Cloudification Repository** — the official source of truth for which SAP objects are released, deprecated, or forbidden in ABAP Cloud / Clean Core. It answers questions like:
+This API queries the **SAP Cloudification Repository** — the official source of truth for which SAP objects are released, deprecated, or forbidden in ABAP Cloud / Clean Core. It answers questions from users and agents like:
 
 - Is this SAP object released for ABAP Cloud?
 - What is the successor of a deprecated object (e.g. MARA → I_PRODUCT)?
@@ -39,7 +39,7 @@ Search for SAP objects with fuzzy matching and relevance ranking.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `query` | **yes** | — | Search term. SAP name (`I_PRODUCT`) or natural language (`purchase order`). Max 200 chars. |
+| `query` | **yes** | — | Search term. Either a direct SAP object name (e.g. `I_PurchaseOrderItemAPI01`) or a functional object in natural language, always singular (e.g. `purchase order`, not `purchase orders`). Max 200 chars. |
 | `system_type` | no | `public_cloud` | Target system |
 | `clean_core_level` | no | `A` | Max level |
 | `version` | no | `latest` | PCE version |
@@ -316,25 +316,24 @@ Health check.
 
 ### "Is BAPI_MATERIAL_GETLIST released?"
 
-1. Call `/api/search?query=BAPI_MATERIAL_GETLIST`
-2. If found, check `objects[0].state` and `objects[0].cleanCoreLevel`
-3. If `state === "released"` and `cleanCoreLevel === "A"` → yes, it's released
+1. Call `/api/object?object_type=FUGR&object_name=BAPI_MATERIAL_GETLIST`
+2. If `found === true`, check `object.state` and `object.cleanCoreLevel`
+3. If `state === "released"` and `cleanCoreLevel === "A"` → yes, it's released for ABAP Cloud
 4. If `state === "deprecated"` → it was released but is now deprecated, check `successor`
-5. If not found or low relevance → likely not released, suggest using `/api/successor`
+5. If `found === false` → the object is not in the repository (likely Level C/D), suggest searching for alternatives with `/api/search`
 
-Or more directly: `/api/object?object_type=FUGR&object_name=BAPI_MATERIAL_GETLIST`
+### "What is the successor of MARA?"
 
-### "What is the successor of ME21N?"
-
-1. Call `/api/successor?object_name=ME21N`
+1. Call `/api/successor?object_name=MARA`
 2. Check `results[0].successor.objects` for the replacement object(s)
 3. If `hasSuccessor === false` → no known successor in the repository
 
 ### "List all released CDS views for purchasing"
 
-1. Call `/api/search?query=purchase&object_type=DDLS&app_component=MM-PUR&limit=50`
+1. Call `/api/search?query=purchase&object_type=DDLS&limit=50`
 2. Results are ranked by relevance
 3. All returned objects are within the requested Clean Core Level
+4. Optionally, add `app_component=MM-PUR` to narrow results to a specific SAP application component
 
 ### "Is my code Clean Core compliant?"
 
@@ -355,36 +354,34 @@ Given a list of objects used in custom code:
 
 - **cleanCoreLevel**: The most important field. `A` = safe for ABAP Cloud. `B` = classic, OK for private cloud. `C`/`D` = avoid.
 - **state**: `released` is best. `deprecated` means use the successor. `classicAPI` is Level B.
-- **relevance**: 0-100 score relative to the best match. Use this to rank results when presenting to the user.
-- **successor**: When present, always mention the successor to the user. It's the recommended replacement.
+- **relevance**: 0-100 score relative to the best match. Use this to rank results when presenting to the user or agent.
+- **successor**: When present, always mention the successor. It's the recommended replacement.
 - **assessment.message**: Human-readable summary of the object's status. Use this directly in your response.
 
 ### Search strategy
 
-1. **If the user gives an exact SAP name** (e.g. "MARA", "CL_GUI_ALV_GRID"): Use `/api/object` with the correct type, or `/api/search` with the name as query.
-2. **If the user describes a concept** (e.g. "purchase order", "send email"): Use `/api/search` with natural language. The API handles fuzzy matching and SAP abbreviation expansion.
-3. **If the user asks about successors/replacements**: Use `/api/successor`.
-4. **If the user has a list of objects to check**: Use `/api/compliance`.
+1. **If the user or agent gives an exact SAP name** (e.g. "MARA", "CL_GUI_ALV_GRID", "I_PurchaseOrderItemAPI01"): Use `/api/object` with the correct type, or `/api/search` with the name as query.
+2. **If the user or agent describes a functional object** (e.g. "purchase order", "material", "billing document" — always singular): Use `/api/search` with natural language. The API handles fuzzy matching and SAP abbreviation expansion.
+3. **If the user or agent asks about successors/replacements**: Use `/api/successor`.
+4. **If the user or agent has a list of objects to check**: Use `/api/compliance`.
 
-### Common TADIR types
+### Object types
 
-- `TABL` — Database table / structure
+The `object_type` parameter filters by TADIR type. Most commonly used:
+
+- `DDLS` — CDS View (most common for released APIs)
 - `CLAS` — ABAP Class
 - `INTF` — ABAP Interface
-- `DDLS` — CDS View (most common for released APIs)
+- `TABL` — Database Table / Structure
 - `BDEF` — RAP Business Object Definition
+- `SRVD` — Service Definition
 - `SRVB` — Service Binding (OData)
-- `FUGR` — Function Group (includes BAPIs)
+- `FUGR` — Function Group (includes BAPIs and function modules)
 - `DTEL` — Data Element
 - `DOMA` — Domain
+- `SUSO` — Authorization Object
 
-### Presenting results to the user
-
-- Always mention the **Clean Core Level** and **state**.
-- If an object is **deprecated**, always mention the **successor**.
-- For search results, show the **top 3-5 most relevant** results unless the user asks for more.
-- When an object is **not found**, explain it's likely Level C/D (internal/noAPI) and suggest searching for alternatives.
-- Use the `typeDescription` field to explain what kind of object it is (CDS view, class, table...).
+Use `/api/types` to get the full list of available object types with counts.
 
 ### Error handling
 
