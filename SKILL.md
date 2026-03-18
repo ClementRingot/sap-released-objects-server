@@ -376,7 +376,7 @@ The `object_type` parameter filters by TADIR type. Most commonly used:
 - `BDEF` — RAP Business Object Definition
 - `SRVD` — Service Definition
 - `SRVB` — Service Binding (OData)
-- `FUGR` — Function Group (includes BAPIs and function modules)
+- `FUNC` — BAPIs and function modules
 - `DTEL` — Data Element
 - `DOMA` — Domain
 - `SUSO` — Authorization Object
