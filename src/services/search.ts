@@ -9,6 +9,7 @@ import { findCompoundAbbreviation } from "./abbreviation-dictionary.js";
 // Known technical prefixes to strip from SAP object names
 const TECHNICAL_PREFIXES = new Set([
   "CL", "IF", "I", "C", "A", "D", "E", "R", "P", "ZCL", "ZIF", "X",
+  "BAPI", "YCL", "YIF",
 ]);
 
 // ---------------------------------------------------------------------------
