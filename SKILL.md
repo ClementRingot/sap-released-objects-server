@@ -1,8 +1,6 @@
-# SAP Released Objects API — Skill for LLM
-
-## What this API does
-
-This API queries the **SAP Cloudification Repository** — the official source of truth for which SAP objects are released, deprecated, or forbidden in ABAP Cloud / Clean Core. It answers questions from users and agents like:
+---
+name: SAP Released Objects API
+description: This API queries the **SAP Cloudification Repository** — the official source of truth for which SAP objects are released, deprecated, or forbidden in ABAP Cloud / Clean Core. It answers questions from users and agents like:
 
 - Is this SAP object released for ABAP Cloud?
 - What is the successor of a deprecated object (e.g. MARA → I_PRODUCT)?
@@ -10,6 +8,9 @@ This API queries the **SAP Cloudification Repository** — the official source o
 - Is a set of objects Clean Core compliant?
 
 Data comes from SAP's public GitHub repository and is cached for 24 hours. No SAP system connection needed.
+---
+
+# Skill Instructions
 
 ## Base URL
 
