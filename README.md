@@ -4,7 +4,7 @@
 [![Release](https://github.com/ClementRingot/sap-released-objects-mcp-server/actions/workflows/release.yml/badge.svg)](https://github.com/ClementRingot/sap-released-objects-mcp-server/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An [MCP server](https://modelcontextprotocol.io/) that gives AI agents real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
+An [MCP server](https://modelcontextprotocol.io/) and **REST API** that gives AI agents real-time knowledge of **which SAP objects are released for ABAP Cloud / Clean Core** — and what to use instead when they're not.
 
 ## The Problem
 
@@ -66,6 +66,7 @@ Then add to your MCP client config:
 - **Multi-system support** — S/4HANA Cloud Public, BTP ABAP Environment, Private Cloud, On-Premise
 - **Dynamic versioning** — PCE versions discovered automatically from the SAP repository
 - **Dual transport** — hosted remote server or local stdio executable
+- **REST API** — all tools also available as simple GET endpoints under `/api`
 
 ## How It Works
 
@@ -177,6 +178,41 @@ Agent:  → calls sap_search_objects(query="send email", system_type="btp")
         → Returns relevant BTP ABAP Environment APIs
 
 ```
+
+## REST API
+
+In addition to the MCP protocol, the hosted server exposes a **REST API** under `/api` for direct HTTP access. All endpoints are `GET` and return JSON. CORS is enabled.
+
+**Base URL:** `https://sap-released-objects-mcp-server-production.up.railway.app`
+
+| Endpoint | Description | Required Parameters |
+| --- | --- | --- |
+| `GET /api` | List all endpoints (auto-documentation) | — |
+| `GET /api/search` | Search objects with fuzzy matching | `query` |
+| `GET /api/object` | Get object details | `object_type`, `object_name` |
+| `GET /api/successor` | Find successor for deprecated object | `object_name` |
+| `GET /api/compliance` | Check Clean Core compliance | `object_names` |
+| `GET /api/types` | List object types with counts | — |
+| `GET /api/statistics` | Repository statistics | — |
+| `GET /api/versions` | List PCE versions | — |
+| `GET /health` | Health check | — |
+
+All endpoints accept optional `system_type`, `clean_core_level`, and `version` query parameters (same defaults as MCP tools).
+
+**Examples:**
+
+```bash
+# Search for purchase order objects
+curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/search?query=purchase+order&limit=5"
+
+# Get details for table MARA
+curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/object?object_type=TABL&object_name=MARA"
+
+# Check compliance of multiple objects
+curl "https://sap-released-objects-mcp-server-production.up.railway.app/api/compliance?object_names=MARA,BSEG,I_PRODUCT"
+```
+
+For full API documentation (parameters, response formats, use cases), see [SKILL.md](./SKILL.md).
 
 ## Building Standalone Executables
 

@@ -1,18 +1,11 @@
 // ============================================================================
 // MCP Tool Implementations
+// Delegates to shared handlers in ../handlers/api-handlers.ts
 // ============================================================================
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { SAPObject, CleanCoreLevel, SystemType, DataStore, IndexedObject } from "../types.js";
-import { loadData, discoverPCEVersions } from "../services/data-loader.js";
-import { tokenizeQuery, scoreObject } from "../services/search.js";
-import { expandQueryTokens } from "../services/abbreviation-dictionary.js";
-import {
-  OBJECT_TYPE_DESCRIPTIONS,
-  CHARACTER_LIMIT,
-  DEFAULT_LIMIT,
-} from "../constants.js";
+import { OBJECT_TYPE_DESCRIPTIONS, CHARACTER_LIMIT } from "../constants.js";
 import {
   SystemTypeSchema,
   CleanCoreLevelSchema,
@@ -24,80 +17,49 @@ import {
   OffsetSchema,
   StateFilterSchema,
 } from "../schemas/common.js";
+import {
+  LEVEL_ORDER,
+  normalizeVersion,
+  getLevelsUpTo,
+  needsClassicApis,
+  getStore,
+  filterByLevel,
+  handleSearchObjects,
+  handleGetObjectDetails,
+  handleFindSuccessor,
+  handleListObjectTypes,
+  handleGetStatistics,
+  handleListVersions,
+  handleCheckCompliance,
+} from "../handlers/api-handlers.js";
+import type {
+  SearchObjectsResult,
+  SearchObjectsError,
+  ObjectDetailsResult,
+  ObjectNotFoundResult,
+  ScoredObject,
+} from "../handlers/api-handlers.js";
+
+// Re-export helpers for backward compatibility (tests, etc.)
+export { LEVEL_ORDER, normalizeVersion, getLevelsUpTo, needsClassicApis, filterByLevel };
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Text formatting helpers (MCP-specific)
 // ---------------------------------------------------------------------------
 
-export const LEVEL_ORDER: CleanCoreLevel[] = ["A", "B", "C", "D"];
-
-/**
- * Normalize version strings from common formats to the internal YEAR_FPS format.
- * Handles: "2022 SP01" → "2022_1", "2023 FPS03" → "2023_3", "2022.1" → "2022_1", etc.
- */
-export function normalizeVersion(version: string): string {
-  const trimmed = version.trim();
-
-  // Already valid: "latest", "2022", "2022_1", etc.
-  if (trimmed === "latest" || /^\d{4}(_\d+)?$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  // Normalize "2022 SP01", "2022_FPS1", "2023.3", "2022 1", etc.
-  const match = trimmed.match(
-    /^(\d{4})[\s_.-]?(?:(?:SP|FPS)[\s_.-]?)?(\d+)$/i
-  );
-  if (match) {
-    const year = match[1];
-    const fps = String(parseInt(match[2], 10)); // Strip leading zeros
-    return `${year}_${fps}`;
-  }
-
-  // Fallback: return as-is (will fail at data loading if invalid)
-  return trimmed;
-}
-
-/** Get all levels up to and including the target level (cumulative) */
-export function getLevelsUpTo(maxLevel: CleanCoreLevel): Set<CleanCoreLevel> {
-  const idx = LEVEL_ORDER.indexOf(maxLevel);
-  return new Set(LEVEL_ORDER.slice(0, idx + 1));
-}
-
-/** Determine if Classic APIs should be loaded based on level and system type */
-export function needsClassicApis(
-  level: CleanCoreLevel,
-  systemType: SystemType
-): boolean {
-  // public_cloud and btp only have Level A — no classic APIs
-  if (systemType === "public_cloud" || systemType === "btp") return false;
-  return LEVEL_ORDER.indexOf(level) >= LEVEL_ORDER.indexOf("B");
-}
-
-/** Load data with appropriate parameters derived from tool inputs */
-async function getStore(
-  systemType: SystemType,
-  version: string,
-  cleanCoreLevel: CleanCoreLevel
-): Promise<DataStore> {
-  const includeClassic = needsClassicApis(cleanCoreLevel, systemType);
-  const effectiveVersion =
-    systemType === "public_cloud" || systemType === "btp"
-      ? "latest"
-      : normalizeVersion(version);
-  return loadData(systemType, effectiveVersion, includeClassic);
-}
-
-/** Filter objects by Clean Core Level (cumulative) */
-export function filterByLevel(
-  objects: SAPObject[],
-  maxLevel: CleanCoreLevel
-): SAPObject[] {
-  const allowed = getLevelsUpTo(maxLevel);
-  return objects.filter((obj) => allowed.has(obj.cleanCoreLevel));
-}
-
-/** Format a single object for text output */
-export function formatObject(obj: SAPObject, verbose: boolean = false): string {
+export function formatObject(obj: {
+  objectType: string;
+  objectName: string;
+  state: string;
+  cleanCoreLevel: string;
+  applicationComponent?: string;
+  softwareComponent?: string;
+  successor?: {
+    classification?: string;
+    objects?: Array<{ objectType: string; objectName: string }>;
+    conceptName?: string;
+  };
+}, verbose: boolean = false): string {
   const typeDesc = OBJECT_TYPE_DESCRIPTIONS[obj.objectType] ?? obj.objectType;
   const levelLabel = `Level ${obj.cleanCoreLevel}`;
 
@@ -125,7 +87,6 @@ export function formatObject(obj: SAPObject, verbose: boolean = false): string {
   return line;
 }
 
-/** Truncate text if too long */
 export function truncateIfNeeded(text: string): string {
   if (text.length <= CHARACTER_LIMIT) return text;
   return (
@@ -190,162 +151,64 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({
-      query,
-      system_type,
-      clean_core_level,
-      version,
-      object_type,
-      app_component,
-      state,
-      limit,
-      offset,
+      query, system_type, clean_core_level, version,
+      object_type, app_component, state, limit, offset,
     }) => {
       try {
-        const store = await getStore(system_type, version, clean_core_level);
+        const result = await handleSearchObjects({
+          query, system_type, clean_core_level, version,
+          object_type, app_component, state, limit, offset,
+        });
 
-        // --- Tokenize the query and expand abbreviations ---
-        const { tokens: queryTokens } = tokenizeQuery(query);
-        const expandedTokens = expandQueryTokens(queryTokens);
-
-        // --- Get indexed candidates (optionally narrowed by type) ---
-        let indexedCandidates: IndexedObject[];
-        if (object_type) {
-          indexedCandidates =
-            store.indexedByType.get(object_type.toUpperCase()) ?? [];
-        } else {
-          indexedCandidates = store.allIndexed;
-        }
-
-        // --- Early exit if the requested object_type doesn't exist in the dataset ---
-        if (object_type && indexedCandidates.length === 0) {
-          const availableTypes = [...store.indexedByType.entries()]
-            .map(([type, items]) => ({ type, count: items.length }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 15)
-            .map(({ type, count }) => {
-              const desc = OBJECT_TYPE_DESCRIPTIONS[type] ?? "";
-              return `  ${type}${desc ? ` (${desc})` : ""}: ${count} objects`;
-            })
+        // Error: unknown type
+        if ("error" in result && result.error === "unknown_type") {
+          const availableTypes = (result.availableTypes ?? [])
+            .map(({ type, count, description }) =>
+              `  ${type}${description ? ` (${description})` : ""}: ${count} objects`
+            )
             .join("\n");
-
           return {
             content: [{
               type: "text" as const,
-              text: `Object type '${object_type}' does not exist in the loaded dataset ` +
-                `(system: ${system_type}, version: ${version}).\n\n` +
-                `Available object types:\n${availableTypes}\n\n` +
-                `Use sap_list_object_types for a complete list with level breakdown.`,
+              text: `${result.message}\n\nAvailable object types:\n${availableTypes}\n\nUse sap_list_object_types for a complete list with level breakdown.`,
             }],
           };
         }
 
-        // --- Apply filters BEFORE scoring ---
-        const allowedLevels = getLevelsUpTo(clean_core_level);
-        let filtered = indexedCandidates.filter((idx) =>
-          allowedLevels.has(idx.object.cleanCoreLevel)
-        );
-
-        if (app_component) {
-          const compUpper = app_component.toUpperCase();
-          filtered = filtered.filter((idx) =>
-            idx.object.applicationComponent.toUpperCase().includes(compUpper)
-          );
-        }
-
-        if (state) {
-          filtered = filtered.filter((idx) => idx.object.state === state);
-        }
-
-        // --- Score each candidate ---
-        let scored: Array<{ indexed: IndexedObject; score: number }> = [];
-        for (const idx of filtered) {
-          const score = scoreObject(idx, queryTokens, query, expandedTokens);
-          if (score > 0) {
-            scored.push({ indexed: idx, score });
-          }
-        }
-
-        // --- Sort by score descending, then alphabetically by name ---
-        scored.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-          return a.indexed.object.objectName.localeCompare(
-            b.indexed.object.objectName
-          );
-        });
-
-        // --- Dynamic threshold: filter out low-quality tail ---
-        // Exclude exact-match bonus (1000) from threshold calculation to prevent
-        // killing all results when one object matches exactly.
-        // Example: "I_PRODUCT" exact=1038, baseScore=38, threshold=10 → keeps I_PRODUCTDESCRIPTION (31)
-        // Example: "purchase order" max=31, threshold=8 → filters single-token noise (score 6 after coverage penalty)
-        if (scored.length > 0) {
-          const topScore = scored[0].score;
-          const baseScore = topScore > 1000 ? topScore - 1000 : topScore;
-          const threshold = Math.max(Math.round(baseScore * 0.25), 3);
-          scored = scored.filter(s => s.score >= threshold);
-        }
-
-        const total = scored.length;
-        const paginated = scored.slice(offset, offset + limit);
-        const hasMore = total > offset + paginated.length;
-
-        if (paginated.length === 0) {
-          const levelInfo =
-            (system_type === "public_cloud" || system_type === "btp") && clean_core_level !== "A"
-              ? ` Note: ${system_type} systems only have Level A objects. Try private_cloud or on_premise for Levels B-D.`
-              : "";
+        // Error: no results
+        if ("error" in result && result.error === "no_results") {
           return {
-            content: [
-              {
-                type: "text" as const,
-                text:
-                  `No objects found matching '${query}' with the specified filters ` +
-                  `(system: ${system_type}, level: ≤${clean_core_level}, type: ${object_type ?? "all"}, ` +
-                  `component: ${app_component ?? "all"}).${levelInfo}\n\n` +
-                  `Suggestions:\n` +
-                  `- Try a broader search term\n` +
-                  `- Increase the Clean Core Level (e.g., from A to B)\n` +
-                  `- Remove object type or component filters\n` +
-                  `- For private/on-premise, ensure the correct version is specified`,
-              },
-            ],
+            content: [{
+              type: "text" as const,
+              text: `${result.message}\n\nSuggestions:\n${(result.suggestions ?? []).map((s) => `- ${s}`).join("\n")}`,
+            }],
           };
         }
 
-        // --- Compute normalized relevance (0–100) ---
-        const maxScore = scored[0].score; // first element has highest score
-
-        const lines = paginated.map(({ indexed, score }) => {
-          const relevance = Math.round((score / maxScore) * 100);
-          return (
-            formatObject(indexed.object, true) +
-            `\n  Relevance: ${relevance}/100 (score: ${score})`
-          );
-        });
-
-        const header =
-          `Found ${total} objects matching '${query}' ` +
-          `(system: ${system_type}, level: ≤${clean_core_level}, ` +
-          `showing ${offset + 1}-${offset + paginated.length} of ${total})`;
-
-        const footer = hasMore
-          ? `\n\n--- More results available. Use offset=${offset + limit} to see next page. ---`
-          : "";
-
-        const text = truncateIfNeeded(
-          `${header}\n\n${lines.join("\n\n")}${footer}`
+        // Success
+        const r = result as SearchObjectsResult;
+        const lines = r.objects.map((obj) =>
+          formatObject(obj, true) + `\n  Relevance: ${obj.relevance}/100 (score: ${obj.score})`
         );
 
+        const header =
+          `Found ${r.total} objects matching '${r.query}' ` +
+          `(system: ${r.system_type}, level: <=${r.clean_core_level}, ` +
+          `showing ${r.offset + 1}-${r.offset + r.objects.length} of ${r.total})`;
+
+        const footer = r.hasMore
+          ? `\n\n--- More results available. Use offset=${r.offset + r.limit} to see next page. ---`
+          : "";
+
+        const text = truncateIfNeeded(`${header}\n\n${lines.join("\n\n")}${footer}`);
         return { content: [{ type: "text" as const, text }] };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error searching objects: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error searching objects: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -385,122 +248,76 @@ export function registerTools(server: McpServer): void {
     },
     async ({ object_type, object_name, system_type, version, clean_core_level }) => {
       try {
-        const store = await getStore(system_type, version, clean_core_level);
-        const key = `${object_type.toUpperCase()}:${object_name.toUpperCase()}`;
-        const obj = store.objectsMap.get(key);
+        const result = await handleGetObjectDetails({
+          object_type, object_name, system_type, version, clean_core_level,
+        });
 
-        if (!obj) {
-          // Try case-insensitive search
-          let found: SAPObject | undefined;
-          for (const [k, v] of store.objectsMap) {
-            if (k.toUpperCase() === key) {
-              found = v;
-              break;
-            }
-          }
-
-          if (!found) {
-            // Object not found in the repo at all — might be Level C or D
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text:
-                    `Object ${object_type} ${object_name} was NOT found in the Cloudification Repository ` +
-                    `for system type '${system_type}' (version: ${version}).\n\n` +
-                    `This means:\n` +
-                    `- The object may not exist in this SAP version\n` +
-                    `- If it's a known SAP standard object, it is likely Level C (internal, unclassified) ` +
-                    `or Level D (noAPI)\n` +
-                    `- It is NOT available for ABAP Cloud (Level A) development\n` +
-                    `- Consider searching for a released successor using sap_find_successor\n` +
-                    `- Or search for alternative released objects using sap_search_objects`,
-                },
-              ],
-            };
-          }
-
+        if (!result.found) {
           return {
-            content: [
-              { type: "text" as const, text: formatObject(found, true) },
-            ],
+            content: [{
+              type: "text" as const,
+              text: result.message + "\n\n" +
+                "This means:\n" +
+                "- The object may not exist in this SAP version\n" +
+                "- If it's a known SAP standard object, it is likely Level C (internal, unclassified) or Level D (noAPI)\n" +
+                "- It is NOT available for ABAP Cloud (Level A) development\n" +
+                "- Consider searching for a released successor using sap_find_successor\n" +
+                "- Or search for alternative released objects using sap_search_objects",
+            }],
           };
         }
 
-        const typeDesc = OBJECT_TYPE_DESCRIPTIONS[obj.objectType] ?? "";
+        const obj = result.object;
         const lines: string[] = [
           `=== ${obj.objectType} ${obj.objectName} ===`,
           "",
           `Clean Core Level: ${obj.cleanCoreLevel}`,
           `State: ${obj.state}`,
-          `Object Type: ${obj.objectType}${typeDesc ? ` (${typeDesc})` : ""}`,
-          `Application Component: ${obj.applicationComponent || "N/A"}`,
-          `Software Component: ${obj.softwareComponent || "N/A"}`,
-          `Source: ${obj.source === "released" ? "Released APIs (Tier 1)" : "Classic APIs (Tier 2)"}`,
+          `Object Type: ${obj.objectType}${obj.typeDescription ? ` (${obj.typeDescription})` : ""}`,
+          `Application Component: ${obj.applicationComponent}`,
+          `Software Component: ${obj.softwareComponent}`,
+          `Source: ${obj.source}`,
         ];
 
-        // Level assessment
+        // Level assessment with emojis
         lines.push("");
+        const a = result.assessment;
         if (obj.cleanCoreLevel === "A" && obj.state === "released") {
-          lines.push(
-            "✅ This object is RELEASED for ABAP Cloud development (Level A).",
-            "   It has a formal stability contract and is upgrade-safe."
-          );
+          lines.push(`\u2705 ${a.message}`);
         } else if (obj.cleanCoreLevel === "A" && obj.state === "deprecated") {
-          lines.push(
-            "⚠️  This object is DEPRECATED. It was previously released but should no longer be used.",
-            "   Check the successor information below."
-          );
+          lines.push(`\u26a0\ufe0f  ${a.message}`);
         } else if (obj.cleanCoreLevel === "B") {
-          lines.push(
-            "ℹ️  This is a Classic API (Level B). It is generally upgrade-stable but does not have",
-            "   a formal release contract. Governance sign-off recommended. Monitor for released successors."
-          );
+          lines.push(`\u2139\ufe0f  ${a.message}`);
         } else if (obj.cleanCoreLevel === "C") {
-          lines.push(
-            "⚠️  This is an internal/unclassified object (Level C). No stability guarantee.",
-            "   Consult SAP changelog for incompatible changes. Plan remediation."
-          );
+          lines.push(`\u26a0\ufe0f  ${a.message}`);
         } else if (obj.cleanCoreLevel === "D") {
-          lines.push(
-            "❌ This object is marked as 'noAPI' (Level D). It is NOT Clean Core.",
-            "   Should be remediated/replaced as a priority. Check for successors."
-          );
+          lines.push(`\u274c ${a.message}`);
         }
 
-        // Successor info
         if (obj.successor) {
           lines.push("", "--- Successor Information ---");
           lines.push(`Classification: ${obj.successor.classification}`);
-
           if (obj.successor.objects && obj.successor.objects.length > 0) {
             lines.push("Successor object(s):");
             for (const succ of obj.successor.objects) {
-              const succDesc =
-                OBJECT_TYPE_DESCRIPTIONS[succ.objectType] ?? "";
               lines.push(
-                `  → ${succ.objectType} ${succ.objectName}${succDesc ? ` (${succDesc})` : ""}`
+                `  \u2192 ${succ.objectType} ${succ.objectName}${succ.typeDescription ? ` (${succ.typeDescription})` : ""}`
               );
             }
           }
-
           if (obj.successor.conceptName) {
             lines.push(`Successor Concept: ${obj.successor.conceptName}`);
           }
         }
 
-        return {
-          content: [{ type: "text" as const, text: lines.join("\n") }],
-        };
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching object details: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error fetching object details: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -545,48 +362,23 @@ export function registerTools(server: McpServer): void {
     },
     async ({ object_name, object_type, system_type, version }) => {
       try {
-        // Load with Level D to include all objects (we need deprecated/noAPI ones)
-        const store = await getStore(system_type, version, "D");
-        const nameUpper = object_name.toUpperCase();
-        const typeUpper = object_type?.toUpperCase();
+        const result = await handleFindSuccessor({
+          object_name, object_type, system_type, version,
+        });
 
-        // Find all objects matching the name that have successors
-        const withSuccessors: SAPObject[] = [];
-        const exactMatches: SAPObject[] = [];
-
-        for (const obj of store.objectsMap.values()) {
-          if (typeUpper && obj.objectType !== typeUpper) continue;
-
-          if (obj.objectName.toUpperCase() === nameUpper) {
-            exactMatches.push(obj);
-          } else if (obj.objectName.toUpperCase().includes(nameUpper)) {
-            if (obj.successor) {
-              withSuccessors.push(obj);
-            }
-          }
-        }
-
-        // Prioritize exact matches
-        const results = [
-          ...exactMatches,
-          ...withSuccessors.slice(0, 20),
-        ];
-
-        if (results.length === 0) {
+        if (result.results.length === 0) {
           return {
-            content: [
-              {
-                type: "text" as const,
-                text:
-                  `No object matching '${object_name}'${object_type ? ` (type: ${object_type})` : ""} ` +
-                  `found in the Cloudification Repository.\n\n` +
-                  `The object may not be cataloged. Try:\n` +
-                  `- Searching with sap_search_objects for related released APIs\n` +
-                  `- Checking the SAP Business Accelerator Hub for released APIs\n` +
-                  `- Using the Cloudification Repository Viewer: ` +
-                  `https://sap.github.io/abap-atc-cr-cv-s4hc/`,
-              },
-            ],
+            content: [{
+              type: "text" as const,
+              text:
+                `No object matching '${object_name}'${object_type ? ` (type: ${object_type})` : ""} ` +
+                `found in the Cloudification Repository.\n\n` +
+                `The object may not be cataloged. Try:\n` +
+                `- Searching with sap_search_objects for related released APIs\n` +
+                `- Checking the SAP Business Accelerator Hub for released APIs\n` +
+                `- Using the Cloudification Repository Viewer: ` +
+                `https://sap.github.io/abap-atc-cr-cv-s4hc/`,
+            }],
           };
         }
 
@@ -595,40 +387,30 @@ export function registerTools(server: McpServer): void {
           "",
         ];
 
-        for (const obj of results) {
-          lines.push(`--- ${obj.objectType} ${obj.objectName} ---`);
-          lines.push(`State: ${obj.state} (Level ${obj.cleanCoreLevel})`);
+        for (const entry of result.results) {
+          lines.push(`--- ${entry.objectType} ${entry.objectName} ---`);
+          lines.push(`State: ${entry.state} (Level ${entry.cleanCoreLevel})`);
 
-          if (obj.successor) {
-            lines.push(`Successor Type: ${obj.successor.classification}`);
-
-            if (obj.successor.objects && obj.successor.objects.length > 0) {
-              for (const succ of obj.successor.objects) {
-                const succDesc =
-                  OBJECT_TYPE_DESCRIPTIONS[succ.objectType] ?? "";
-                // Check if successor is released
-                const succKey = `${succ.objectType}:${succ.objectName}`;
-                const succObj = store.objectsMap.get(succKey);
-                const succState = succObj
-                  ? `${succObj.state} (Level ${succObj.cleanCoreLevel})`
-                  : "status unknown";
+          if (entry.successor) {
+            lines.push(`Successor Type: ${entry.successor.classification}`);
+            if (entry.successor.objects && entry.successor.objects.length > 0) {
+              for (const succ of entry.successor.objects) {
                 lines.push(
-                  `  → ${succ.objectType} ${succ.objectName}${succDesc ? ` (${succDesc})` : ""} [${succState}]`
+                  `  \u2192 ${succ.objectType} ${succ.objectName}${succ.typeDescription ? ` (${succ.typeDescription})` : ""} [${succ.state} (Level ${succ.cleanCoreLevel})]`
                 );
               }
             }
-
-            if (obj.successor.conceptName) {
-              lines.push(`  → Concept: ${obj.successor.conceptName}`);
+            if (entry.successor.conceptName) {
+              lines.push(`  \u2192 Concept: ${entry.successor.conceptName}`);
             }
           } else {
-            if (obj.state === "released") {
+            if (entry.state === "released") {
               lines.push(
-                "  ✅ This object IS released (Level A). No successor needed — use this object directly."
+                "  \u2705 This object IS released (Level A). No successor needed \u2014 use this object directly."
               );
             } else {
               lines.push(
-                "  ⚠️  No successor information available for this object."
+                "  \u26a0\ufe0f  No successor information available for this object."
               );
             }
           }
@@ -637,19 +419,15 @@ export function registerTools(server: McpServer): void {
         }
 
         return {
-          content: [
-            { type: "text" as const, text: truncateIfNeeded(lines.join("\n")) },
-          ],
+          content: [{ type: "text" as const, text: truncateIfNeeded(lines.join("\n")) }],
         };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error finding successors: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error finding successors: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -681,61 +459,34 @@ export function registerTools(server: McpServer): void {
     },
     async ({ system_type, clean_core_level, version }) => {
       try {
-        const store = await getStore(system_type, version, clean_core_level);
-        const allowedLevels = getLevelsUpTo(clean_core_level);
-
-        // Count by type, filtered by level
-        const typeCounts = new Map<string, { total: number; byLevel: Record<string, number> }>();
-
-        for (const obj of store.objectsMap.values()) {
-          if (!allowedLevels.has(obj.cleanCoreLevel)) continue;
-
-          const entry = typeCounts.get(obj.objectType) ?? {
-            total: 0,
-            byLevel: {},
-          };
-          entry.total++;
-          entry.byLevel[obj.cleanCoreLevel] =
-            (entry.byLevel[obj.cleanCoreLevel] ?? 0) + 1;
-          typeCounts.set(obj.objectType, entry);
-        }
-
-        // Sort by count descending
-        const sorted = [...typeCounts.entries()].sort(
-          (a, b) => b[1].total - a[1].total
-        );
+        const result = await handleListObjectTypes({ system_type, clean_core_level, version });
 
         const lines: string[] = [
-          `=== SAP Object Types (system: ${system_type}, level: ≤${clean_core_level}) ===`,
+          `=== SAP Object Types (system: ${result.system_type}, level: \u2264${result.clean_core_level}) ===`,
           "",
-          `Total types: ${sorted.length}`,
+          `Total types: ${result.totalTypes}`,
           "",
         ];
 
-        for (const [type, data] of sorted) {
-          const desc = OBJECT_TYPE_DESCRIPTIONS[type] ?? "";
-          const levelBreakdown = Object.entries(data.byLevel)
+        for (const t of result.types) {
+          const levelBreakdown = Object.entries(t.byLevel)
             .map(([lvl, cnt]) => `L${lvl}:${cnt}`)
             .join(" ");
           lines.push(
-            `${type.padEnd(6)} ${String(data.total).padStart(6)} objects  (${levelBreakdown})${desc ? `  — ${desc}` : ""}`
+            `${t.type.padEnd(6)} ${String(t.count).padStart(6)} objects  (${levelBreakdown})${t.description ? `  \u2014 ${t.description}` : ""}`
           );
         }
 
         return {
-          content: [
-            { type: "text" as const, text: truncateIfNeeded(lines.join("\n")) },
-          ],
+          content: [{ type: "text" as const, text: truncateIfNeeded(lines.join("\n")) }],
         };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing object types: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error listing object types: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -767,81 +518,46 @@ export function registerTools(server: McpServer): void {
     },
     async ({ system_type, clean_core_level, version }) => {
       try {
-        const store = await getStore(system_type, version, clean_core_level);
-
-        const levelCounts: Record<string, number> = {};
-        const stateCounts: Record<string, number> = {};
-        const typeCounts: Record<string, number> = {};
-        const compCounts: Record<string, number> = {};
-
-        for (const obj of store.objectsMap.values()) {
-          levelCounts[obj.cleanCoreLevel] =
-            (levelCounts[obj.cleanCoreLevel] ?? 0) + 1;
-          stateCounts[obj.state] = (stateCounts[obj.state] ?? 0) + 1;
-          typeCounts[obj.objectType] =
-            (typeCounts[obj.objectType] ?? 0) + 1;
-          if (obj.applicationComponent) {
-            // Use top-level component (first 2 segments)
-            const topComp = obj.applicationComponent.split("-").slice(0, 2).join("-");
-            compCounts[topComp] = (compCounts[topComp] ?? 0) + 1;
-          }
-        }
-
-        // Top 15 application components
-        const topComps = Object.entries(compCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 15);
-
-        // Top 10 object types
-        const topTypes = Object.entries(typeCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10);
-
-        const pceVersions = await discoverPCEVersions();
+        const result = await handleGetStatistics({ system_type, clean_core_level, version });
 
         const lines: string[] = [
           `=== SAP Cloudification Repository Statistics ===`,
           "",
-          `Source: ${store.sourceId}`,
-          `Loaded at: ${store.loadedAt.toISOString()}`,
-          `Total unique objects: ${store.objectsMap.size}`,
+          `Source: ${result.source}`,
+          `Loaded at: ${result.loadedAt}`,
+          `Total unique objects: ${result.totalObjects}`,
           "",
           "--- By Clean Core Level ---",
           ...LEVEL_ORDER.map(
-            (lvl) => `  Level ${lvl}: ${(levelCounts[lvl] ?? 0).toLocaleString()} objects`
+            (lvl) => `  Level ${lvl}: ${(result.byLevel[lvl] ?? 0).toLocaleString()} objects`
           ),
           "",
           "--- By State ---",
-          ...Object.entries(stateCounts)
+          ...Object.entries(result.byState)
             .sort((a, b) => b[1] - a[1])
             .map(([state, count]) => `  ${state}: ${count.toLocaleString()}`),
           "",
           "--- Top Object Types ---",
-          ...topTypes.map(([type, count]) => {
-            const desc = OBJECT_TYPE_DESCRIPTIONS[type] ?? "";
-            return `  ${type}: ${count.toLocaleString()}${desc ? ` (${desc})` : ""}`;
-          }),
-          "",
-          "--- Top Application Components ---",
-          ...topComps.map(
-            ([comp, count]) => `  ${comp}: ${count.toLocaleString()}`
+          ...result.topObjectTypes.map(({ type, count, description }) =>
+            `  ${type}: ${count.toLocaleString()}${description ? ` (${description})` : ""}`
           ),
           "",
-          `Available PCE versions: ${pceVersions.join(", ")}`,
+          "--- Top Application Components ---",
+          ...result.topApplicationComponents.map(
+            ({ component, count }) => `  ${component}: ${count.toLocaleString()}`
+          ),
+          "",
+          `Available PCE versions: ${result.availableVersions.join(", ")}`,
         ];
 
-        return {
-          content: [{ type: "text" as const, text: lines.join("\n") }],
-        };
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching statistics: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error fetching statistics: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -869,38 +585,27 @@ export function registerTools(server: McpServer): void {
     },
     async () => {
       try {
-        const versions = await discoverPCEVersions();
+        const result = await handleListVersions();
 
         const lines: string[] = [
           `=== Available S/4HANA PCE Versions ===`,
           "",
-          `Total: ${versions.length} versions`,
+          `Total: ${result.total} versions`,
           "",
-          ...versions.map((v) => {
-            const parts = v.split("_");
-            const year = parts[0];
-            const fps = parts.length > 1 ? parts[1] : null;
-            return fps !== null
-              ? `  ${v}  (${year} FPS${fps.padStart(2, "0")} / SP${fps.padStart(2, "0")})`
-              : `  ${v}  (${year} base release)`;
-          }),
+          ...result.versions.map((v) => `  ${v.version}  (${v.label})`),
           "",
           "Use 'latest' to always target the most recent version.",
           "Pass a specific version to other tools via the 'version' parameter.",
         ];
 
-        return {
-          content: [{ type: "text" as const, text: lines.join("\n") }],
-        };
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing versions: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error listing versions: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
@@ -947,74 +652,33 @@ export function registerTools(server: McpServer): void {
     },
     async ({ object_names, target_level, system_type, version }) => {
       try {
-        // Load with Level D to check all possible states
-        const store = await getStore(system_type, version, "D");
-        const targetLevels = getLevelsUpTo(target_level);
-
-        const items = object_names
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
+        const result = await handleCheckCompliance({
+          object_names, target_level, system_type, version,
+        });
 
         const lines: string[] = [
-          `=== Clean Core Compliance Check (Target: Level ${target_level}) ===`,
-          `System: ${system_type}, Version: ${version}`,
-          `Objects to check: ${items.length}`,
+          `=== Clean Core Compliance Check (Target: Level ${result.targetLevel}) ===`,
+          `System: ${result.system_type}, Version: ${result.version}`,
+          `Objects to check: ${result.totalChecked}`,
           "",
         ];
 
-        let compliant = 0;
-        let nonCompliant = 0;
-        let notFound = 0;
-
-        for (const item of items) {
-          let searchType: string | undefined;
-          let searchName: string;
-
-          if (item.includes(":")) {
-            const [t, n] = item.split(":");
-            searchType = t.toUpperCase();
-            searchName = n.toUpperCase();
-          } else {
-            searchName = item.toUpperCase();
-          }
-
-          // Find the object
-          let found: SAPObject | undefined;
-
-          if (searchType) {
-            found = store.objectsMap.get(`${searchType}:${searchName}`);
-          } else {
-            // Search across all types
-            for (const [key, obj] of store.objectsMap) {
-              if (key.endsWith(`:${searchName}`)) {
-                found = obj;
-                break;
-              }
+        for (const entry of result.results) {
+          if (entry.status === "not_found") {
+            lines.push(`\u2753 ${entry.input} \u2014 NOT FOUND in repository (likely Level C/D or non-existent)`);
+          } else if (entry.status === "compliant") {
+            const icon = entry.state === "deprecated" ? "\u26a0\ufe0f" : "\u2705";
+            let line = `${icon} ${entry.objectType} ${entry.objectName} \u2014 Level ${entry.cleanCoreLevel} (${entry.state})`;
+            if (entry.state === "deprecated" && entry.successor?.objects) {
+              line += ` \u2192 Use: ${entry.successor.objects.map((s) => s.objectName).join(", ")}`;
             }
-          }
-
-          if (!found) {
-            notFound++;
-            lines.push(
-              `❓ ${item} — NOT FOUND in repository (likely Level C/D or non-existent)`
-            );
-          } else if (targetLevels.has(found.cleanCoreLevel)) {
-            compliant++;
-            const icon = found.state === "deprecated" ? "⚠️" : "✅";
-            lines.push(
-              `${icon} ${found.objectType} ${found.objectName} — Level ${found.cleanCoreLevel} (${found.state})` +
-                (found.state === "deprecated" && found.successor?.objects
-                  ? ` → Use: ${found.successor.objects.map((s) => s.objectName).join(", ")}`
-                  : "")
-            );
+            lines.push(line);
           } else {
-            nonCompliant++;
-            let line = `❌ ${found.objectType} ${found.objectName} — Level ${found.cleanCoreLevel} (${found.state})`;
-            if (found.successor?.objects) {
-              line += ` → Successor: ${found.successor.objects.map((s) => `${s.objectType} ${s.objectName}`).join(", ")}`;
-            } else if (found.successor?.conceptName) {
-              line += ` → Concept: ${found.successor.conceptName}`;
+            let line = `\u274c ${entry.objectType} ${entry.objectName} \u2014 Level ${entry.cleanCoreLevel} (${entry.state})`;
+            if (entry.successor?.objects) {
+              line += ` \u2192 Successor: ${entry.successor.objects.map((s) => `${s.objectType} ${s.objectName}`).join(", ")}`;
+            } else if (entry.successor?.conceptName) {
+              line += ` \u2192 Concept: ${entry.successor.conceptName}`;
             }
             lines.push(line);
           }
@@ -1023,29 +687,24 @@ export function registerTools(server: McpServer): void {
         lines.push(
           "",
           "--- Summary ---",
-          `✅ Compliant (≤ Level ${target_level}): ${compliant}`,
-          `❌ Non-compliant: ${nonCompliant}`,
-          `❓ Not found: ${notFound}`,
-          `📊 Compliance rate: ${items.length > 0 ? Math.round((compliant / items.length) * 100) : 0}%`
+          `\u2705 Compliant (\u2264 Level ${result.targetLevel}): ${result.compliant}`,
+          `\u274c Non-compliant: ${result.nonCompliant}`,
+          `\u2753 Not found: ${result.notFound}`,
+          `\ud83d\udcca Compliance rate: ${result.complianceRate}%`
         );
 
         return {
-          content: [
-            { type: "text" as const, text: truncateIfNeeded(lines.join("\n")) },
-          ],
+          content: [{ type: "text" as const, text: truncateIfNeeded(lines.join("\n")) }],
         };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Error checking compliance: ${err instanceof Error ? err.message : String(err)}`,
-            },
-          ],
+          content: [{
+            type: "text" as const,
+            text: `Error checking compliance: ${err instanceof Error ? err.message : String(err)}`,
+          }],
         };
       }
     }
   );
-
 }

@@ -3,6 +3,7 @@
 // ============================================================================
 // SAP Released Objects MCP Server
 // Main entry point — supports both stdio and HTTP transports
+// Exposes MCP protocol on /mcp and REST API on /api
 // ============================================================================
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -11,6 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import express from "express";
 
 import { registerTools } from "./tools/register-tools.js";
+import { createApiRouter } from "./routes/api-routes.js";
 
 // ---------------------------------------------------------------------------
 // Create and configure the MCP server
@@ -48,6 +50,9 @@ async function runHTTP(): Promise<void> {
     res.json({ status: "ok", server: "sap-released-objects-mcp-server" });
   });
 
+  // REST API endpoints
+  app.use("/api", createApiRouter());
+
   // MCP endpoint
   app.post("/mcp", async (req, res) => {
     const transport = new StreamableHTTPServerTransport({
@@ -62,8 +67,11 @@ async function runHTTP(): Promise<void> {
   const port = parseInt(process.env.PORT || "3001");
   app.listen(port, () => {
     console.error(
-      `[SAP Released Objects MCP] HTTP server running on http://localhost:${port}/mcp`
+      `[SAP Released Objects MCP] HTTP server running on http://localhost:${port}`
     );
+    console.error(`  MCP endpoint: http://localhost:${port}/mcp`);
+    console.error(`  REST API:     http://localhost:${port}/api`);
+    console.error(`  Health:       http://localhost:${port}/health`);
   });
 }
 
