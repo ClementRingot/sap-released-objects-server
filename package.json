@@ -1,6 +1,6 @@
 {
   "name": "sap-released-objects-server",
-  "version": "1.12.2",
+  "version": "1.12.3",
   "description": "MCP server and REST API for SAP Cloudification Repository - Search released objects, classic APIs, successors with Clean Core Level filtering (A/B/C/D)",
   "type": "module",
   "main": "dist/index.js",
