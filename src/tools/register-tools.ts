@@ -37,7 +37,6 @@ import type {
   SearchObjectsError,
   ObjectDetailsResult,
   ObjectNotFoundResult,
-  ScoredObject,
 } from "../handlers/api-handlers.js";
 
 // Re-export helpers for backward compatibility (tests, etc.)
@@ -188,7 +187,7 @@ export function registerTools(server: McpServer): void {
         // Success
         const r = result as SearchObjectsResult;
         const lines = r.objects.map((obj) =>
-          formatObject(obj, true) + `\n  Relevance: ${obj.relevance}/100 (score: ${obj.score})`
+          formatObject(obj, true) + `\n  Relevance: ${obj.relevance}/100`
         );
 
         const header =

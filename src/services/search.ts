@@ -344,7 +344,10 @@ export function scoreObject(
     }
 
     // 5b. Compound abbreviation matching (requires expanded tokens)
-    if (!compoundPrefix && !compoundContains && expandedTokens) {
+    //     Exclusive with compoundPrefixFuzzy — take the stronger signal, not both.
+    //     Without this guard, fuzzy(12) + abbreviation(18) = 30 beats exact compoundPrefix(25),
+    //     causing e.g. I_PURCHASEORDITMTRANSPSETTLMT (44) to outrank I_PURCHASEORDERAPI01 (39).
+    if (!compoundPrefix && !compoundContains && !compoundPrefixFuzzy && expandedTokens) {
       // Check if query tokens form a known compound phrase → abbreviation
       const compound = findCompoundAbbreviation(queryTokens, 0);
       if (compound) {

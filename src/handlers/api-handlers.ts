@@ -73,7 +73,6 @@ export interface ScoredObject {
     conceptName?: string;
   };
   relevance: number;
-  score: number;
 }
 
 export interface SearchObjectsResult {
@@ -324,7 +323,6 @@ export async function handleSearchObjects(params: {
         }
       : undefined,
     relevance: Math.round((score / maxScore) * 100),
-    score,
   }));
 
   return {

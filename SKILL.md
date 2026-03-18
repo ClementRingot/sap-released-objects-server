@@ -76,8 +76,7 @@ GET /api/search?query=purchase+order&object_type=DDLS&limit=5
       "applicationComponent": "MM-PUR-PO",
       "softwareComponent": "S4CORE",
       "typeDescription": "Data Definition Language Source (CDS View)",
-      "relevance": 100,
-      "score": 48
+      "relevance": 100
     }
   ]
 }
