@@ -142,10 +142,12 @@ export function tokenizeQuery(query: string): {
   const isExactMode = /^[A-Z0-9_/]+$/.test(trimmed) && trimmed.length >= 2;
 
   // Detect technical prefix: if query starts with a known prefix followed by "_something"
+  // or a space-separated equivalent (e.g., "BAPI MESSAGE GETDETAIL")
   // e.g., "BAPI_MATERIAL_GETLIST" → mandatoryPrefix = "BAPI_", scored only on ["material", "getlist"]
   // e.g., "CL_ABAP_REGEX"         → mandatoryPrefix = "CL_",   scored only on ["abap", "regex"]
+  // e.g., "BAPI MESSAGE GETDETAIL" → mandatoryPrefix = "BAPI_", scored only on ["message", "getdetail"]
   let mandatoryPrefix: string | undefined;
-  const prefixMatch = trimmed.match(/^([A-Za-z]+)_(.+)/);
+  const prefixMatch = trimmed.match(/^([A-Za-z]+)[_\s](.+)/);
   if (prefixMatch) {
     const candidate = prefixMatch[1].toUpperCase();
     if (TECHNICAL_PREFIXES.has(candidate)) {
@@ -241,8 +243,10 @@ export function scoreObject(
   const nameUpper = object.objectName.toUpperCase();
   const queryUpper = rawQuery.toUpperCase();
 
-  // 1. Exact match on full object name
-  const exactMatch = nameUpper === queryUpper ? 1 : 0;
+  // 1. Exact match on full object name (normalize separators: spaces ↔ underscores)
+  const queryNormalized = queryUpper.replace(/[\s_/]+/g, "_");
+  const nameNormalized = nameUpper.replace(/[\s_/]+/g, "_");
+  const exactMatch = nameNormalized === queryNormalized ? 1 : 0;
 
   // 2. Token-level matching
   let tokenMatches = 0;
@@ -325,11 +329,17 @@ export function scoreObject(
     if (anyMatch) matchedQueryTokens++;
   }
 
-  // 3. Raw query substring in object name
-  const nameContains = nameUpper.includes(queryUpper) ? 1 : 0;
+  // 3. Raw query substring in object name (normalize separators)
+  const nameContains =
+    nameUpper.includes(queryUpper) || nameNormalized.includes(queryNormalized)
+      ? 1
+      : 0;
 
   // 4. Object name starts with raw query (very strong signal for SAP name queries)
-  const namePrefix = nameUpper.startsWith(queryUpper) ? 1 : 0;
+  const namePrefix =
+    nameUpper.startsWith(queryUpper) || nameNormalized.startsWith(queryNormalized)
+      ? 1
+      : 0;
 
   // 5. Compound word matching
   let compoundPrefix = 0;

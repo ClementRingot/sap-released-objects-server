@@ -278,6 +278,10 @@ export async function handleSearchObjects(params: {
   }
 
   scored.sort((a, b) => {
+    // Sort by score×coverage (consistent with the displayed relevance metric)
+    const relA = a.score * a.coverage;
+    const relB = b.score * b.coverage;
+    if (relB !== relA) return relB - relA;
     if (b.score !== a.score) return b.score - a.score;
     return a.indexed.object.objectName.localeCompare(b.indexed.object.objectName);
   });
