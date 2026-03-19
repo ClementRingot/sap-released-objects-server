@@ -4,3 +4,4 @@ bundle/
 bin/
 *.exe
 .claude/
+.github/skills
