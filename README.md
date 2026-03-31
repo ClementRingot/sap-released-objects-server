@@ -55,7 +55,7 @@ curl "https://sap-released-objects-server-production.up.railway.app/api/object?o
 curl "https://sap-released-objects-server-production.up.railway.app/api/compliance?object_names=MARA,BSEG,I_PRODUCT"
 ```
 
-To use as an **LLM skill**, see [`SKILL.md`](./SKILL.md) — it contains the full API reference formatted for LLM consumption (endpoints, parameters, response examples, interpretation instructions).
+To use as an **LLM skill**, see [`SKILL.md`](./skills/sap-released-objects/SKILL.md) — it contains the full API reference formatted for LLM consumption (endpoints, parameters, response examples, interpretation instructions).
 
 ### Option 3 — Standalone executable (local, no Node.js)
 
